@@ -269,7 +269,11 @@ window.TL = window.TL || {};
       ]),
       h('button', { class: 'tl-sync', id: 'tl-sync-badge', 'data-state': 'idle', title: '点击打开云端同步设置' }, [
         h('i', { class: 'tl-sync__dot' }),
-        h('span', { class: 'tl-sync__text', text: '初始化…' })
+        h('span', { class: 'tl-sync__text', text: '同步空闲' })
+      ]),
+      h('button', { class: 'tl-sync tl-local', id: 'tl-local-badge', 'data-state': 'saved', title: '本地自动保存状态' }, [
+        h('i', { class: 'tl-sync__dot' }),
+        h('span', { class: 'tl-sync__text', text: '本地已保存' })
       ]),
       h('button', { class: 'tl-sync', id: 'tl-code-badge', 'data-state': 'idle', title: '代码部署状态', onClick: openSettings }, [
         h('i', { class: 'tl-sync__dot' }),
@@ -300,14 +304,36 @@ window.TL = window.TL || {};
 
     $('#tl-sync-badge').addEventListener('click', openSettings);
 
-    // 同步状态 → 常驻指示器（同步中 / 已同步 / 同步失败 / 离线模式）
+    // 同步状态 → 常驻指示器（顶部状态栏四态：同步空闲 / 正在同步 / 同步成功 / 同步失败）
     TL.Sync.on(function (s) {
       var badge = $('#tl-sync-badge');
       if (!badge) return;
-      var map = { idle: 'idle', offline: 'offline', unconfigured: 'idle', pending: 'pending', syncing: 'syncing', synced: 'synced', error: 'error' };
-      badge.setAttribute('data-state', map[s.status] || 'idle');
-      $('.tl-sync__text', badge).textContent = s.message;
-      badge.title = s.lastError ? ('错误：' + s.lastError) : '点击打开云端同步设置';
+      var phase = s.phase || 'idle';
+      // 四态中文文案
+      var TEXT = { idle: '同步空闲', syncing: '正在同步', success: '同步成功', failed: '同步失败' };
+      // 映射到底层 data-state 以复用现有配色（idle 复用默认灰、syncing→info、success→synced、failed→error）
+      var STATE = { idle: 'idle', syncing: 'syncing', success: 'synced', failed: 'error' };
+      badge.setAttribute('data-state', STATE[phase] || 'idle');
+      badge.setAttribute('data-phase', phase);
+      $('.tl-sync__text', badge).textContent = TEXT[phase] || '同步空闲';
+      badge.title = (s.lastError ? ('同步失败：' + s.lastError) : '云端同步 · ' + (TEXT[phase] || '同步空闲')) +
+                    (s.message ? (' · ' + s.message) : '');
+    });
+
+    // 本地自动保存状态 → 常驻指示器（30s 轮询兜底 + 关页强制落盘）
+    if (TL.Store.onLocal) TL.Store.onLocal(function (ls) {
+      var b = $('#tl-local-badge');
+      if (!b) return;
+      if (ls.dirty) {
+        b.setAttribute('data-state', 'saving');
+        $('.tl-sync__text', b).textContent = '本地保存中…';
+        b.title = '有未保存改动，将在 30 秒内自动写入本地缓存';
+      } else {
+        b.setAttribute('data-state', 'saved');
+        var t = ls.lastSavedAt ? fmtTime(ls.lastSavedAt) : '';
+        $('.tl-sync__text', b).textContent = '本地已保存';
+        b.title = '本地已保存' + (t ? (' · ' + t) : '');
+      }
     });
 
     // 代码部署状态 → 常驻指示器
@@ -373,10 +399,11 @@ window.TL = window.TL || {};
       field('访问令牌（手动粘贴 PAT / OAuth 自动写入）', 'token', c.token, 'ghp_xxx 或 gho_xxx（需 repo 权限，仅存本机）', 'password'),
       field('目标分支', 'branch', c.branch || 'main', 'main'),
       h('label', { class: 'tl-field' }, [
-        h('span', { class: 'tl-field__label', text: '自动同步延迟（秒）' }),
-        h('input', { class: 'tl-input', type: 'number', min: '5', max: '300', value: String(c.delaySec || 30), 'data-k': 'delaySec' })
+        h('span', { class: 'tl-field__label', text: 'GitHub 同步冷却（秒，建议 ≥60）' }),
+        h('input', { class: 'tl-input', type: 'number', min: '5', max: '300', value: String(c.delaySec || 60), 'data-k': 'delaySec' })
       ]),
-      h('div', { class: 'tl-note', text: '令牌仅保存在本机浏览器 localStorage，不会写入仓库、不经过任何第三方服务。业务数据同步至「业务数据仓库」，静态源码托管于「前端代码仓库」。' })
+      h('div', { class: 'tl-note', text: '令牌仅保存在本机浏览器 localStorage，不会写入仓库、不经过任何第三方服务。业务数据同步至「业务数据仓库」，静态源码托管于「前端代码仓库」。' }),
+      h('div', { class: 'tl-field__tip', text: '本地兜底：所有改动每 30 秒自动写入浏览器本地缓存，关闭/刷新页面前强制落盘，断网也能正常使用；云端同步在变更后静默冷却 60 秒再推送（短时间多次修改只合并提交一次），失败则每 3 分钟自动重试。' })
     ]));
 
     /* ② 同步状态与操作 */
@@ -481,6 +508,7 @@ window.TL = window.TL || {};
 
     function doSyncNow() {
       if (needConfig()) return;
+      if (TL.Store.flushLocal) TL.Store.flushLocal();   // 先确保本地最新改动已落盘
       toast('开始同步…');
       TL.Sync.syncNow().then(function () {
         toast('同步完成', 'success');

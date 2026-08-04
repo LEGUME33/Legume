@@ -16,9 +16,11 @@ window.TL = window.TL || {};
 (function (TL) {
   'use strict';
 
-  /* 状态机：idle | offline | unconfigured | pending | syncing | synced | error */
+  /* 状态机：idle | offline | unconfigured | pending | syncing | synced | error
+     顶层 phase 用于顶部状态栏四态展示：idle（同步空闲）/ syncing（正在同步）/ success（同步成功）/ failed（同步失败） */
   var state = {
     status: 'idle',
+    phase: 'idle',
     message: '初始化…',
     dirty: {},
     countdown: 0,
@@ -40,8 +42,16 @@ window.TL = window.TL || {};
     });
   }
 
+  function phaseOf(status) {
+    if (status === 'syncing') return 'syncing';
+    if (status === 'synced') return 'success';
+    if (status === 'error') return 'failed';
+    return 'idle';
+  }
+
   function setStatus(status, message) {
     state.status = status;
+    state.phase = phaseOf(status);
     state.message = message;
     notify();
   }
@@ -210,11 +220,17 @@ window.TL = window.TL || {};
     var meta = TL.Store.meta();
     var device = TL.Store.settings().device;
 
+    // 简洁提交备注 + 标记提交时间（用于云端历史版本与回滚）
+    var now = new Date();
+    var stamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0') + ' ' +
+                String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
     var chain = cats.reduce(function (p, cat) {
       return p.then(function () {
         var data = TL.Store.get(cat);
         var text = JSON.stringify(data, null, 2);
-        var msg = 'data(' + cat + '): sync from ' + device + ' @ ' + new Date().toLocaleString('zh-CN');
+        var msg = '同步 ' + cats.length + ' 个数据文件 · ' + device + ' · ' + stamp;
 
         return TL.GitHub.putFile(filePath(cat), text, msg, meta.sha[cat])
           .then(function (r) {
@@ -244,6 +260,8 @@ window.TL = window.TL || {};
       state.lastPushAt = Date.now();
       TL.Store.saveSettings({ lastPushAt: state.lastPushAt });
       state.lastError = '';
+      // 顺带把仅本地、尚未上传的图片二进制持续推送到 /data/image 目录
+      if (TL.Media && TL.Media.uploadPending) TL.Media.uploadPending().catch(function () {});
       refreshIdleStatus();
       return { pushed: cats };
     }).catch(function (err) {
@@ -298,7 +316,7 @@ window.TL = window.TL || {};
     });
     window.addEventListener('offline', refreshIdleStatus);
 
-    // 关闭页面前尽力推送，避免 30 秒窗口内的数据丢失
+    // 关闭页面前尽力推送，避免 60 秒冷却窗口内的数据丢失
     window.addEventListener('beforeunload', function () {
       if (!hasDirty() || !TL.GitHub.configured() || !navigator.onLine) return;
       try { flushSync(); } catch (e) { /* 浏览器可能拦截，本地数据已落盘，下次打开会补推 */ }
@@ -306,6 +324,16 @@ window.TL = window.TL || {};
 
     // 「已同步 · x 分钟前」文案定时刷新
     setInterval(function () { if (state.status === 'synced') refreshIdleStatus(); }, 30000);
+
+    /* 同步异常兜底：GitHub 推送失败后，本地缓存持续保留，
+       后台每隔 3 分钟自动重试一次（断网/失败均不丢数据，联网即补发） */
+    setInterval(function () {
+      if (!TL.GitHub.configured() || !navigator.onLine) return;
+      var localDirty = TL.Store.localState && TL.Store.localState().dirty;
+      if (hasDirty() || localDirty) {
+        push().catch(function () {});
+      }
+    }, 180000);
 
     refreshIdleStatus();
     return pull().catch(function () {});

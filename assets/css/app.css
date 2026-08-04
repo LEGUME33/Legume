@@ -122,6 +122,12 @@ small { font-size: var(--fs-cap); }
 
 @keyframes tl-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(.7); } }
 
+/* ---------- 本地自动保存指示器（莫兰迪色系，与云端指示器同源视觉） ---------- */
+.tl-local[data-state="saved"]  { color: var(--c-primary); background: var(--c-primary-soft); border-color: transparent; }
+.tl-local[data-state="saved"]  .tl-sync__dot { background: var(--c-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-primary) 22%, transparent); }
+.tl-local[data-state="saving"] { color: var(--c-tip-warning); background: var(--c-tip-warning-soft); border-color: transparent; }
+.tl-local[data-state="saving"] .tl-sync__dot { background: var(--c-tip-warning); animation: tl-pulse 1s infinite var(--ease); }
+
 .tl-iconbtn {
   width: 32px; height: 32px;
   display: grid; place-items: center;
@@ -1627,6 +1633,8 @@ small { font-size: var(--fs-cap); }
   .tl-brand__name { font-size: var(--fs-sub); }
   .tl-sync { padding: 0 var(--sp-2); font-size: 10px; }
   .tl-sync__text { max-width: 56px; }
+  .tl-local .tl-sync__text { display: none; }   /* 极窄屏仅留圆点状态指示 */
+  .tl-local { padding: 0 var(--sp-2); }
   .tl-nav__link { padding: var(--sp-1) var(--sp-2); font-size: var(--fs-cap); }
   .tl-main { padding: var(--sp-3) var(--sp-2) var(--sp-6); }
 }

@@ -48,7 +48,7 @@ window.TL = window.TL || {};
     token: '',         // ⚠️ 切勿在此写入明文令牌！仅在应用内「设置 → GitHub 私有仓库连接」中粘贴，令牌只存本机 localStorage，绝不入库
     branch: 'main',    // 目标分支
     autoSync: true,
-    delaySec: 30,      // 数据修改后延迟推送秒数
+    delaySec: 60,      // GitHub 同步冷却秒数：本地变更后静默等待 60s 再推送，短时间内多次修改只合并提交一次
     theme: 'system',   // system | light | dark
     device: '',        // 本机标识，用于提交信息与操作日志
     lastPullAt: 0,
@@ -64,6 +64,14 @@ window.TL = window.TL || {};
   var cache = {};       // 内存副本
   var settings = null;  // 本地设置
   var listeners = [];   // 变更订阅者
+
+  /* ------------------------------ 本地自动保存（第二层之前的兜底） ------------------------------
+     规范要求：每 30 秒检测并落盘 localStorage；关闭/刷新/切后台前强制落盘；
+     覆盖所有业务分类与配置。所有改动经 update/replace/saveSettings/logActivity 进入，
+     均会标记 localDirty，由 30s 轮询与关页兜底统一刷写。 */
+  var localDirty = false;
+  var localLastSavedAt = 0;
+  var localSubs = [];
 
   /* ------------------------------ 基础工具 ------------------------------ */
   function lsGet(key, fallback) {
@@ -114,6 +122,57 @@ window.TL = window.TL || {};
     });
   }
 
+  /* ------------------------------ 本地自动保存接口 ------------------------------ */
+  function markLocalDirty() { localDirty = true; emitLocal(); }
+
+  /**
+   * 将内存中所有业务分类 + 设置 + 元信息写入 localStorage（幂等兜底）。
+   * @returns {boolean} 本次是否真正发生了写入
+   */
+  function flushLocal() {
+    var wrote = localDirty;
+    if (localDirty) {                       // 仅当确有未保存改动时才写盘，避免无谓的 localStorage 写入
+      CATS.forEach(function (cat) { persist(cat); });
+      if (settings) lsSet(NS + '.settings', settings);
+      lsSet(NS + '.meta', TL.Store.meta());
+      localDirty = false;
+      localLastSavedAt = Date.now();
+    }
+    emitLocal();
+    return wrote;
+  }
+
+  function localState() { return { dirty: localDirty, lastSavedAt: localLastSavedAt }; }
+
+  function emitLocal() {
+    var snap = localState();
+    localSubs.forEach(function (fn) { try { fn(snap); } catch (e) { console.error('[Store] 本地订阅者异常', e); } });
+  }
+
+  function onLocal(fn) {
+    localSubs.push(fn);
+    fn(localState());
+    return function () { localSubs = localSubs.filter(function (f) { return f !== fn; }); };
+  }
+
+  /** 启动本地自动保存：30s 轮询兜底 + 关页/切后台强制落盘 */
+  function startAutosave() {
+    // ① 每 30 秒检测并落盘本地缓存，杜绝内存与 localStorage 不一致
+    setInterval(function () { try { flushLocal(); } catch (e) { console.warn('[Store] 本地轮询落盘失败', e); } }, 30000);
+
+    // ② 关闭 / 刷新 / 切到后台前强制落盘，杜绝数据丢失
+    function force() { try { flushLocal(); } catch (e) {} }
+    window.addEventListener('beforeunload', force);
+    window.addEventListener('pagehide', force);
+    if (document.addEventListener) {
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') force();
+      });
+    }
+
+    if (!localLastSavedAt) localLastSavedAt = Date.now();
+  }
+
   /* ------------------------------ 设置 ------------------------------ */
   function detectDevice() {
     var ua = navigator.userAgent || '';
@@ -126,6 +185,8 @@ window.TL = window.TL || {};
 
   function loadSettings() {
     settings = Object.assign({}, DEFAULT_SETTINGS, lsGet(NS + '.settings', {}));
+    // 迁移：旧版默认冷却 30s 统一升级为 60s（仅当等于旧默认值时，尊重用户后续手动调整）
+    if (settings.delaySec === 30) settings.delaySec = 60;
     if (!settings.device) {
       settings.device = detectDevice();
       lsSet(NS + '.settings', settings);
@@ -216,6 +277,7 @@ window.TL = window.TL || {};
     mutator(data);
     data.updatedAt = Date.now();
     persist(cat);
+    markLocalDirty();
     if (action && cat !== 'activity') logActivity(cat, action);
     emit('change', { cat: cat, action: action });
     if (TL.Sync && TL.Sync.markDirty) TL.Sync.markDirty(cat);
@@ -227,6 +289,7 @@ window.TL = window.TL || {};
     cache[cat] = Object.assign(DEFAULTS[cat] ? DEFAULTS[cat]() : {}, data || {});
     migrate(cat, cache[cat]);
     persist(cat);
+    markLocalDirty();
     emit('change', { cat: cat, action: 'remote-apply', silent: true });
   }
 
@@ -268,6 +331,7 @@ window.TL = window.TL || {};
     if (log.logs.length > 500) log.logs.length = 500;
     log.updatedAt = Date.now();
     persist('activity');
+    markLocalDirty();
     if (TL.Sync && TL.Sync.markDirty) TL.Sync.markDirty('activity');
   }
 
@@ -379,7 +443,7 @@ window.TL = window.TL || {};
     last30Days: last30Days,
     clone: clone,
 
-    init: function () { loadSettings(); CATS.forEach(load); ensureStudyPresets(); return this; },
+    init: function () { loadSettings(); CATS.forEach(load); ensureStudyPresets(); startAutosave(); return this; },
 
     get: load,
     update: update,
@@ -387,10 +451,17 @@ window.TL = window.TL || {};
     stats: stats,
     log: logActivity,
 
+    /* 本地自动保存接口（30s 轮询兜底 + 关页强制落盘） */
+    markLocalDirty: markLocalDirty,
+    flushLocal: flushLocal,
+    localState: localState,
+    onLocal: onLocal,
+
     settings: function () { return settings || loadSettings(); },
     saveSettings: function (patch) {
       settings = Object.assign(loadSettings(), patch || {});
       lsSet(NS + '.settings', settings);
+      markLocalDirty();
       emit('settings', settings);
       return settings;
     },
