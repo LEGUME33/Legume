@@ -201,6 +201,15 @@ window.TL = window.TL || {};
       if (!d.plans || typeof d.plans !== 'object' || Array.isArray(d.plans)) d.plans = { month: [], week: [], day: [] };
       ['month', 'week', 'day'].forEach(function (k) { if (!Array.isArray(d.plans[k])) d.plans[k] = []; });
       if (!Array.isArray(d.todos)) d.todos = [];
+      // 规范每条待办：补齐 id / 绑定日期（无日期旧数据默认归到当日）/ 优先级 / 完成态 / 备注，
+      // 以支持「按日期筛选 + 远期待办 + 历史补录 + 工作总结日历联动」
+      d.todos.forEach(function (t) {
+        if (!t.id) t.id = uid('todo');
+        if (typeof t.date !== 'string' || !t.date) t.date = todayKey();
+        if (typeof t.priority !== 'string') t.priority = '普通';
+        if (typeof t.done !== 'boolean') t.done = false;
+        if (typeof t.note !== 'string') t.note = '';
+      });
       if (!Array.isArray(d.reviews)) d.reviews = [];
       // 规范化每条复盘结构，兼容旧版只有 {type, summary} 的记录
       d.reviews.forEach(function (r) {

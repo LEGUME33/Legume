@@ -26,6 +26,7 @@ window.TL.pages = window.TL.pages || {};
   var current = 'plans';
   var scope = 'day';
   var reviewFilter = 'all'; // 'all' | 'day' | 'week' | 'month' —— 复盘列表类型筛选
+  var todoDateKey = null;   // 工作待办页当前选定日期（YYYY-MM-DD），列表按此筛选
 
   function el(id) { return document.getElementById(id); }
   function saveReview(r, action) {
@@ -140,14 +141,59 @@ window.TL.pages = window.TL.pages || {};
     });
   }
 
+  /* ===================== 日期工具 ===================== */
+  var WEEK_CN = ['日', '一', '二', '三', '四', '五', '六'];
+  function fmtDateKey(key) {
+    var p = (key || '').split('-');
+    if (p.length < 3) return key || '';
+    var d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return p[0] + '-' + p[1] + '-' + p[2] + ' ' + WEEK_CN[d.getDay()];
+  }
+
+  /* 莫兰迪日历弹层日期选择器：支持跨月 / 跨年挑选过去、当日、未来任意日期 */
+  function tlDatePicker(initialKey, onPick) {
+    var key = initialKey || TL.Store.todayKey();
+    var wrap = U.h('div', { class: 'tl-datepick' });
+    var btn = U.h('button', { class: 'tl-datepick__btn', type: 'button', text: fmtDateKey(key) });
+    var pop = U.h('div', { class: 'tl-datepick__pop', style: 'display:none' });
+    var built = false;
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (pop.style.display !== 'none') { pop.style.display = 'none'; return; }
+      if (!built) {
+        pop.appendChild(U.calendar({
+          view: 'month', weekStart: 1, selected: key,
+          onSelect: function (k) {
+            key = k; btn.textContent = fmtDateKey(k);
+            pop.style.display = 'none';
+            if (onPick) onPick(k);
+          }
+        }));
+        built = true;
+      }
+      pop.style.display = '';
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(pop);
+    return wrap;
+  }
+
   /* ============================ 工作待办 ============================ */
   function renderTodos() {
     var host = el('wk-todos');
     if (!host) return;
     host.innerHTML = '';
     var data = TL.Store.get('work');
+    if (!todoDateKey) todoDateKey = TL.Store.todayKey();
 
-    var input = U.h('input', { class: 'tl-input', placeholder: '添加工作待办，回车提交' });
+    /* 顶部日期选择栏：日历弹层选择器 + 今天快捷 */
+    host.appendChild(U.h('div', { class: 'tl-todo-datebar' }, [
+      tlDatePicker(todoDateKey, function (k) { todoDateKey = k; renderTodos(); }),
+      U.h('button', { class: 'tl-btn tl-btn--ghost tl-btn--sm', text: '今天', onClick: function () { todoDateKey = TL.Store.todayKey(); renderTodos(); } })
+    ]));
+
+    /* 新增输入：绑定到当前选定日期 */
+    var input = U.h('input', { class: 'tl-input', placeholder: '添加 ' + fmtDateKey(todoDateKey) + ' 的待办，回车提交' });
     var pri = U.h('select', { class: 'tl-select' }, [
       U.h('option', { value: '普通', text: '普通' }),
       U.h('option', { value: '重要', text: '重要' }),
@@ -157,26 +203,31 @@ window.TL.pages = window.TL.pages || {};
       var text = input.value.trim();
       if (!text) return;
       TL.Store.update('work', function (d) {
-        d.todos.unshift({ id: TL.Store.uid('todo'), text: text, done: false, priority: pri.value, ts: Date.now() });
-      }, '新增待办「' + text + '」');
+        d.todos.unshift({ id: TL.Store.uid('todo'), text: text, done: false, priority: pri.value, date: todoDateKey, note: '', ts: Date.now() });
+      }, '新增待办「' + text + '」(' + todoDateKey + ')');
       input.value = '';
     }
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
-    host.appendChild(U.h('div', { class: 'tl-inline-form', style: 'margin-bottom:16px' }, [
+    host.appendChild(U.h('div', { class: 'tl-inline-form', style: 'margin:12px 0 6px' }, [
       input, pri, U.h('button', { class: 'tl-btn tl-btn--primary', text: '添加', onClick: add })
     ]));
 
-    if (!data.todos.length) { host.appendChild(U.h('div', { class: 'tl-empty', text: '暂无待办，保持清爽' })); return; }
+    /* 按选定日期筛选 */
+    var list = (data.todos || []).filter(function (t) { return t.date === todoDateKey; });
+    host.appendChild(U.h('div', { class: 'tl-muted tl-todo-count', text: fmtDateKey(todoDateKey) + ' · 共 ' + list.length + ' 条待办' }));
+
+    if (!list.length) { host.appendChild(U.h('div', { class: 'tl-empty', text: '该日期暂无待办，上方添加或切换日期查看。' })); return; }
     var box = U.h('div', {});
-    data.todos.forEach(function (t) {
+    list.forEach(function (t) {
       box.appendChild(U.taskItem({
-        text: t.text, done: t.done, meta: t.priority || '普通',
+        text: t.text, done: t.done, meta: t.priority || '普通', note: t.note,
         onToggle: function (next) {
           TL.Store.update('work', function (d) {
             var it = d.todos.filter(function (x) { return x.id === t.id; })[0];
             if (it) it.done = next;
           }, (next ? '完成' : '重开') + '待办「' + t.text + '」');
         },
+        onEdit: function () { todoModal(t, todoDateKey); },
         onDelete: function () {
           U.confirm('删除待办？', '「' + t.text + '」将被移除。', function () {
             TL.Store.update('work', function (d) { d.todos = d.todos.filter(function (x) { return x.id !== t.id; }); }, '删除待办「' + t.text + '」');
@@ -185,6 +236,78 @@ window.TL.pages = window.TL.pages || {};
       }));
     });
     host.appendChild(box);
+  }
+
+  /* 新建 / 编辑待办弹窗（统一）：内容、绑定日期、优先级、完成状态、备注；改日期二次确认 */
+  function todoModal(existing, defaultDate) {
+    var isNew = !existing;
+    var name = existing ? existing.text : '';
+    var dateKey = (existing && existing.date) || defaultDate || TL.Store.todayKey();
+    var pri = existing ? existing.priority || '普通' : '普通';
+    var doneState = existing ? !!existing.done : false;
+    var note = existing ? (existing.note || '') : '';
+
+    var nameI = U.h('input', { class: 'tl-input', value: name, placeholder: '待办内容' });
+    var dateI = U.h('input', { class: 'tl-input', type: 'date', value: dateKey });
+    var priSel = U.h('select', { class: 'tl-select' }, [
+      U.h('option', { value: '普通', text: '普通' }),
+      U.h('option', { value: '重要', text: '重要' }),
+      U.h('option', { value: '紧急', text: '紧急' })
+    ]);
+    priSel.value = pri;
+    var noteI = U.h('textarea', { class: 'tl-textarea', placeholder: '备注（选填）', text: note });
+    var doneSeg = U.h('div', { class: 'tl-seg' }, [
+      U.h('button', { class: 'tl-seg__btn' + (doneState ? ' is-active' : ''), text: '已完成', onClick: function () { doneState = true; syncSeg(); } }),
+      U.h('button', { class: 'tl-seg__btn' + (!doneState ? ' is-active' : ''), text: '未完成', onClick: function () { doneState = false; syncSeg(); } })
+    ]);
+    function syncSeg() {
+      var b = doneSeg.querySelectorAll('.tl-seg__btn');
+      b[0].classList.toggle('is-active', doneState);
+      b[1].classList.toggle('is-active', !doneState);
+    }
+
+    var content = U.h('div', {}, [
+      U.h('label', { class: 'tl-field' }, [U.h('span', { class: 'tl-field__label', text: '待办内容' }), nameI]),
+      U.h('label', { class: 'tl-field' }, [U.h('span', { class: 'tl-field__label', text: '绑定日期' }), dateI]),
+      U.h('label', { class: 'tl-field' }, [U.h('span', { class: 'tl-field__label', text: '优先级' }), priSel]),
+      U.h('label', { class: 'tl-field' }, [U.h('span', { class: 'tl-field__label', text: '完成状态' }), doneSeg]),
+      U.h('label', { class: 'tl-field' }, [U.h('span', { class: 'tl-field__label', text: '备注' }), noteI])
+    ]);
+
+    U.modal({
+      title: isNew ? '新建待办' : '编辑待办',
+      content: content,
+      actions: [
+        { label: '取消', type: 'ghost', onClick: function (m) { m.close(); } },
+        { label: '保存', type: 'primary', onClick: function (m) {
+          var text = nameI.value.trim();
+          if (!text) { U.toast('请填写待办内容', 'info'); return; }
+          dateKey = dateI.value || (existing && existing.date) || TL.Store.todayKey();
+          var priority = priSel.value;
+          var commit = function () {
+            if (isNew) {
+              todoDateKey = dateKey;
+              TL.Store.update('work', function (d) {
+                d.todos.unshift({ id: TL.Store.uid('todo'), text: text, done: doneState, priority: priority, date: dateKey, note: noteI.value, ts: Date.now() });
+              }, '新增待办「' + text + '」(' + dateKey + ')');
+            } else {
+              TL.Store.update('work', function (d) {
+                var it = d.todos.filter(function (x) { return x.id === existing.id; })[0];
+                if (it) { it.text = text; it.date = dateKey; it.priority = priority; it.done = doneState; it.note = noteI.value; }
+              }, '编辑待办「' + text + '」');
+            }
+            m.close();
+            renderTodos();
+          };
+          // 改绑定日期属大幅度修改，二次确认后提交（与每日计划保持一致）
+          if (!isNew && dateKey !== existing.date) {
+            U.confirm('确认修改待办日期？', '「' + text + '」将从 ' + existing.date + ' 移动到 ' + dateKey + '，工作总结日历将自动同步更新。', commit);
+          } else {
+            commit();
+          }
+        } }
+      ]
+    });
   }
 
   /* ============================ 复盘总结 ============================ */
@@ -601,6 +724,13 @@ window.TL.pages = window.TL.pages || {};
   TL.pages.work = {
     init: function () {
       U = TL.UI;
+      todoDateKey = TL.Store.todayKey();
+      // 点击页面其它区域时收起所有打开的日期选择弹层
+      document.addEventListener('click', function (e) {
+        var t = e.target;
+        if (t && t.closest && t.closest('.tl-datepick')) return;
+        U.$$('.tl-datepick__pop').forEach(function (p) { if (p.style.display !== 'none') p.style.display = 'none'; });
+      });
       var tabs = el('wk-tabs');
       TABS.forEach(function (t) {
         tabs.appendChild(U.h('button', { class: 'tl-tab', 'data-tab': t.key, text: t.label, onClick: function () { switchTab(t.key); } }));
@@ -610,6 +740,8 @@ window.TL.pages = window.TL.pages || {};
       var hash = (location.hash || '').replace('#', '');
       switchTab(TABS.filter(function (t) { return t.key === hash; }).length ? hash : TABS[0].key);
     },
-    render: render
+    render: render,
+    // 供【工作总结】日历 openDay 快捷新建 / 编辑该日期待办
+    openTodoModal: function (todo, date) { todoModal(todo, date); }
   };
 })(window.TL);

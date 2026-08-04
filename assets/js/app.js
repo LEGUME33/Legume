@@ -45,6 +45,9 @@ window.TL.pages = window.TL.pages || {};
     if (TL.Deploy && TL.Deploy.init) TL.Deploy.init();
     if (TL.Vercel && TL.Vercel.init) TL.Vercel.init();
 
+    /* ⑤-c 挂载全局底部状态栏（云端连接实时状态，依赖上述模块已初始化） */
+    if (TL.UI.mountStatusbar) TL.UI.mountStatusbar();
+
     /* ⑥ 快捷键：Ctrl/Cmd + S 立即同步 */
     document.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's') {

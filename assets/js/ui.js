@@ -364,6 +364,8 @@ window.TL = window.TL || {};
     } catch (e) { /* 旧浏览器忽略 */ }
   }
 
+  function kv(k, v) { return h('div', { class: 'tl-kv' }, [h('span', { text: k }), h('b', { text: v || '—' })]); }
+
   /* ------------------------------ 设置面板 ------------------------------ */
   function openSettings() {
     var c = TL.Store.settings();
@@ -376,7 +378,6 @@ window.TL = window.TL || {};
         h('input', { class: 'tl-input', type: type || 'text', value: val || '', placeholder: ph || '', 'data-k': key, autocomplete: 'off', spellcheck: 'false' })
       ]);
     }
-    function kv(k, v) { return h('div', { class: 'tl-kv' }, [h('span', { text: k }), h('b', { text: v || '—' })]); }
 
     /* ① GitHub 账号登录（免 PAT，系统自动授权） */
     box.appendChild(h('div', { class: 'tl-setting-group' }, [
@@ -861,6 +862,214 @@ window.TL = window.TL || {};
     return root;
   }
 
+  /* ------------------------------ 全局底部状态栏（云端连接实时状态） ------------------------------ */
+
+  /** 将 TL.Sync / TL.Deploy / TL.Vercel 内部状态映射为底部状态栏的 sb 属性值 */
+  function mapSyncState(s) {
+    if (!navigator.onLine) return 'offline';
+    var phase = s.phase || 'idle';
+    var status = s.status;
+    if (phase === 'syncing' || status === 'syncing') return 'syncing';
+    if (status === 'pending' || phase === 'pending') return 'syncing';   /* 待同步也显示"正在同步"态 */
+    if (status === 'error' || phase === 'failed') return 'error';
+    if (status === 'offline') return 'offline';
+    if (!TL.GitHub.configured() || status === 'unconfigured') return 'disconnected';
+    /* synced / idle → 已连接 */
+    return 'connected';
+  }
+
+  function syncText(s) {
+    var sb = mapSyncState(s);
+    var TEXT = {
+      connected:  '已连接云端·自动同步',
+      syncing:   '正在同步至GitHub',
+      error:     '同步失败',
+      offline:   '离线模式',
+      disconnected: '未连接云端·仅本地'
+    };
+    return TEXT[sb] || '未连接云端·仅本地';
+  }
+
+  function mapDeployState(s) {
+    if (!navigator.onLine) return 'offline';
+    if (s.status === 'synced' || s.status === 'ready') return 'ready';
+    if (s.status === 'syncing' || s.status === 'pushing') return 'pushing';
+    if (s.status === 'error') return 'error';
+    /* idle / unconfigured → 待部署 */
+    return 'pending-deploy';
+  }
+
+  function deployText(s) {
+    var sb = mapDeployState(s);
+    var TEXT = {
+      ready:         '代码·已就绪',
+      pushing:        '代码·推送中',
+      error:         '代码·部署失败',
+      'pending-deploy': '代码·待部署',
+      offline:       '离线模式'
+    };
+    return TEXT[sb] || '代码·待部署';
+  }
+
+  function mapVercelState(s) {
+    if (!navigator.onLine) return 'offline';
+    if (s.status === 'ready') return 'ready';
+    if (s.status === 'building') return 'building';
+    if (s.status === 'checking') return 'checking';
+    if (s.status === 'unlinked' || s.status === 'idle' || s.status === 'error' || !TL.Vercel.configured()) return 'unlinked';
+    return 'ready';
+  }
+
+  function vercelText(s) {
+    var sb = mapVercelState(s);
+    var TEXT = {
+      ready:     'Vercel·已连通',
+      building:  'Vercel·构建中',
+      checking:  'Vercel·查询中',
+      unlinked:  'Vercel·未连接',
+      offline:   '离线模式'
+    };
+    return TEXT[sb] || 'Vercel·未连接';
+  }
+
+  /** 刷新单个 pill 的视觉状态（data-sb + 文字 + title 悬浮提示） */
+  function refreshPill(pill, sb, text, detailTitle) {
+    if (!pill) return;
+    pill.setAttribute('data-sb', sb);
+    var dot = pill.querySelector('.tl-statusbar__dot');
+    var txt = pill.querySelector('.tl-statusbar__text');
+    if (txt) txt.textContent = text;
+    pill.title = detailTitle || text;
+  }
+
+  /** 底部状态栏详情弹窗 */
+  function showStatusDetail(title, stateObj, extraRows) {
+    var rows = [];
+    rows.push(kv('当前状态', stateObj.message || '—'));
+    if (stateObj.lastPushAt) rows.push(kv('最近推送', fmtTime(stateObj.lastPushAt)));
+    if (stateObj.lastPullAt) rows.push(kv('最近拉取', fmtTime(stateObj.lastPullAt)));
+    if (stateObj.url) rows.push(kv('线上地址', stateObj.url));
+    if (stateObj.lastError) rows.push(kv('最近错误', stateObj.lastError));
+    if (stateObj.status === 'offline' || !navigator.onLine) {
+      rows.push(h('div', { class: 'tl-note', text: '当前网络不可用，所有云端功能暂停，数据正常读写本地缓存。' }));
+    }
+    (extraRows || []).forEach(function (r) { rows.push(r); });
+    modal({ title: title, content: h('div', {}, rows), actions: [{ label: '关闭', type: 'ghost', onClick: function (m) { m.close(); } }] });
+  }
+
+  function mountStatusbar() {
+    // 防止重复挂载
+    if ($('#tl-statusbar')) return;
+
+    document.body.classList.add('has-statusbar');
+
+    // ---- 构建 DOM ----
+    var bar = h('div', { id: 'tl-statusbar', class: 'tl-statusbar' }, [
+      /* ① 云端同步（GitHub） */
+      h('button', { class: 'tl-statusbar__pill', id: 'sb-sync', type: 'button', onClick: function () {
+        showStatusDetail('云端同步详情', TL.Sync.state(), [
+          kv('同步阶段', (TL.Sync.state().phase || 'idle').toUpperCase()),
+          h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
+            h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '立即同步', onClick: function () {
+              if (TL.GitHub.configured()) { TL.Sync.syncNow().catch(function () {}); }
+            }})
+          ])
+        ]);
+      }}, [
+        h('i', { class: 'tl-statusbar__dot' }),
+        h('span', { class: 'tl-statusbar__text', text: '检测中…' })
+      ]),
+      /* ② 代码部署状态 */
+      h('button', { class: 'tl-statusbar__pill', id: 'sb-deploy', type: 'button', onClick: function () {
+        showStatusDetail('代码部署详情', TL.Deploy.state(), [
+          kv('代码仓库', (TL.Store.settings().codeRepo || TL.Store.settings().repo) || '—'),
+          h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
+            h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '推送代码', onClick: function () {
+              TL.Deploy.pushCode().catch(function () {});
+            }})
+          ])
+        ]);
+      }}, [
+        h('i', { class: 'tl-statusbar__dot' }),
+        h('span', { class: 'tl-statusbar__text', text: '检测中…' })
+      ]),
+      /* ③ Vercel 连通状态 */
+      h('button', { class: 'tl-statusbar__pill', id: 'sb-vercel', type: 'button', onClick: function () {
+        var vs = TL.Vercel.state();
+        showStatusDetail('Vercel 部署详情', vs, [
+          kv('项目 ID', vs.projectId || '未绑定'),
+          kv('构建中', vs.building ? '是' : '否'),
+          h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
+            h('button', { class: 'tl-btn tl-btn--secondary tl-btn--sm', text: '刷新状态', onClick: function () {
+              TL.Vercel.status().catch(function () {});
+            }})
+          ])
+        ]);
+      }}, [
+        h('i', { class: 'tl-statusbar__dot' }),
+        h('span', { class: 'tl-statusbar__text', text: '检测中…' })
+      ]),
+      /* ④ 明暗模式切换 */
+      h('button', { class: 'tl-statusbar__btn', id: 'sb-theme', type: 'button', title: '切换明暗主题', onClick: cycleTheme, text: '◐' }),
+      /* ⑤ 设置 */
+      h('button', { class: 'tl-statusbar__btn', id: 'sb-settings', type: 'button', title: '工作台设置', onClick: openSettings, text: '⚙' })
+    ]);
+
+    document.body.appendChild(bar);
+
+    var syncPill   = $('#sb-sync');
+    var deployPill = $('#sb-deploy');
+    var vercelPill = $('#sb-vercel');
+
+    /** 统一刷新全部三个状态 pill */
+    function refreshAll() {
+      var ss = TL.Sync.state();
+      var ds = TL.Deploy.state();
+      var vs = TL.Vercel.state();
+
+      var isOffline = !navigator.onLine;
+
+      // 离线兜底：全部置灰
+      if (isOffline) {
+        refreshPill(syncPill,   'offline',   '离线模式',       '网络不可用，仅本地读写');
+        refreshPill(deployPill, 'offline',   '离线模式',       '网络不可用，无法部署');
+        refreshPill(vercelPill, 'offline',   '离线模式',       '网络不可用，无法连通');
+        return;
+      }
+
+      refreshPill(syncPill,   mapSyncState(ss),   syncText(ss),   ss.message + (ss.lastError ? ('\n失败原因：' + ss.lastError) : ''));
+      refreshPill(deployPill, mapDeployState(ds), deployText(ds), ds.message + (ds.lastError ? ('\n失败原因：' + ds.lastError) : ''));
+      refreshPill(vercelPill, mapVercelState(vs), vercelText(vs), vs.message + (vs.lastError ? ('\n失败原因：' + vs.lastError) : '') + (vs.url ? ('\n线上地址：' + vs.url) : ''));
+
+      // 同步主题按钮图标
+      applyTheme();
+    }
+
+    // ---- 订阅各模块状态变化 ----
+    TL.Sync.on(refreshAll);
+    TL.Deploy.on(refreshAll);
+    TL.Vercel.on(refreshAll);
+
+    // ---- 网络状态监听 ----
+    window.addEventListener('online', refreshAll);
+    window.addEventListener('offline', refreshAll);
+
+    // ---- 每 60 秒主动轮询刷新（确保状态不过期） ----
+    var pollTimer = setInterval(function () {
+      TL.Sync.refresh();
+      // Vercel 也定期刷新一次
+      if (TL.Vercel.configured()) TL.Vercel.status().catch(function () {});
+    }, 60000);
+
+    // ---- 首次渲染 ----
+    refreshAll();
+
+    // 页面卸载时清理定时器
+    window.addEventListener('beforeunload', function () { clearInterval(pollTimer); });
+
+    return { refresh: refreshAll, destroy: function () { clearInterval(pollTimer); bar.remove(); document.body.classList.remove('has-statusbar'); } };
+  }
+
   TL.UI = {
     h: h, svg: svg, $: $, $$: $$, esc: esc, fmtTime: fmtTime,
     mountShell: mountShell,
@@ -876,6 +1085,7 @@ window.TL = window.TL || {};
     previewCard: previewCard,
     metric: metric,
     openSettings: openSettings,
-    openHistory: openHistory
+    openHistory: openHistory,
+    mountStatusbar: mountStatusbar
   };
 })(window.TL);

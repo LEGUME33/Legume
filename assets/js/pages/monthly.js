@@ -82,6 +82,18 @@ window.TL.pages = window.TL.pages || {};
     });
   }
 
+  /* 某日期绑定的工作待办（联动【工作待办】模块，按 date 聚合） */
+  function todosOf(key) {
+    return (TL.Store.get('work').todos || []).filter(function (t) { return t.date === key; });
+  }
+
+  function daySection(title, node) {
+    return U.h('div', { class: 'mo-day__section' }, [
+      U.h('div', { class: 'mo-day__section-title', text: title }),
+      node
+    ]);
+  }
+
   /* 某日期任务完成状态：empty | todo | partial | done */
   function cellStatus(key) {
     var list = dayPlansOf(key);
@@ -103,16 +115,17 @@ window.TL.pages = window.TL.pages || {};
     return { done: done, total: total };
   }
 
-  /* ---------------- 弹窗：当日日计划明细 ---------------- */
+  /* ---------------- 弹窗：当日明细（日计划 + 工作待办，双向互通） ---------------- */
   function openDay(key, dayNum) {
     var list = dayPlansOf(key);
     var total = list.length;
     var done = list.filter(function (p) { return p.done; }).length;
+    var todos = todosOf(key);
 
     var body = U.h('div', {}, [
       U.h('div', { class: 'tl-modal__lead' }, [
         U.h('span', { class: 'tl-tag tl-tag--' + (total && done === total ? 'success' : 'sub'), text: total ? (done + '/' + total + ' 已完成') : '无日计划' }),
-        U.h('span', { class: 'tl-muted', text: key })
+        U.h('span', { class: 'tl-muted', text: key + (todos.length ? (' · 待办 ' + todos.length) : '') })
       ])
     ]);
 
@@ -131,11 +144,35 @@ window.TL.pages = window.TL.pages || {};
           }
         }));
       });
-      body.appendChild(box);
+      body.appendChild(daySection('当日日计划', box));
     }
 
+    if (todos.length) {
+      var tbox = U.h('div', { class: 'tl-review-list' });
+      todos.forEach(function (t) {
+        tbox.appendChild(U.taskItem({
+          text: t.text, done: t.done, meta: t.priority || '普通', note: t.note,
+          onToggle: function (next) {
+            TL.Store.update('work', function (d) {
+              var it = d.todos.filter(function (x) { return x.id === t.id; })[0];
+              if (it) it.done = next;
+            }, (next ? '完成' : '重开') + '待办「' + t.text + '」');
+          },
+          onEdit: function () { TL.pages.work.openTodoModal(t, key); }
+        }));
+      });
+      body.appendChild(daySection('当日工作待办', tbox));
+    } else if (!total) {
+      body.appendChild(U.h('div', { class: 'tl-empty', text: '当日暂无工作待办。点击下方按钮快速新建。' }));
+    }
+
+    /* 快捷操作：直接新建该日期的工作待办（与【工作待办】模块双向互通） */
+    body.appendChild(U.h('div', { class: 'mo-day__actions' }, [
+      U.h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '＋ 新建该日期工作待办', onClick: function () { TL.pages.work.openTodoModal(null, key); } })
+    ]));
+
     U.modal({
-      title: (anchor.getMonth() + 1) + ' 月 ' + dayNum + ' 日 · 日计划明细',
+      title: (anchor.getMonth() + 1) + ' 月 ' + dayNum + ' 日 · 当日明细',
       content: body,
       actions: [{ label: '关闭', type: 'primary', onClick: function (m) { m.close(); } }]
     });
@@ -206,11 +243,14 @@ window.TL.pages = window.TL.pages || {};
         return cls;
       },
       cellContent: function (key) {
+        var marks = [];
         var s = cellStatus(key);
-        if (s === 'done') return U.h('span', { class: 'mo-cell__dot is-on' });
-        if (s === 'partial') return U.h('span', { class: 'mo-cell__dot is-partial' });
-        if (s === 'todo') return U.h('span', { class: 'mo-cell__dot is-todo' });
-        return null;
+        if (s === 'done') marks.push(U.h('span', { class: 'mo-cell__dot is-on' }));
+        else if (s === 'partial') marks.push(U.h('span', { class: 'mo-cell__dot is-partial' }));
+        else if (s === 'todo') marks.push(U.h('span', { class: 'mo-cell__dot is-todo' }));
+        var ts = todosOf(key);
+        if (ts.length) marks.push(U.h('span', { class: 'mo-cell__todo', text: String(ts.length) }));
+        return marks.length ? U.h('div', { class: 'mo-cell__marks' }, marks) : null;
       }
     });
 
@@ -246,11 +286,14 @@ window.TL.pages = window.TL.pages || {};
         return cls;
       },
       cellContent: function (key) {
+        var marks = [];
         var s = cellStatus(key);
-        if (s === 'done') return U.h('span', { class: 'mo-cell__dot is-on' });
-        if (s === 'partial') return U.h('span', { class: 'mo-cell__dot is-partial' });
-        if (s === 'todo') return U.h('span', { class: 'mo-cell__dot is-todo' });
-        return null;
+        if (s === 'done') marks.push(U.h('span', { class: 'mo-cell__dot is-on' }));
+        else if (s === 'partial') marks.push(U.h('span', { class: 'mo-cell__dot is-partial' }));
+        else if (s === 'todo') marks.push(U.h('span', { class: 'mo-cell__dot is-todo' }));
+        var ts = todosOf(key);
+        if (ts.length) marks.push(U.h('span', { class: 'mo-cell__todo', text: String(ts.length) }));
+        return marks.length ? U.h('div', { class: 'mo-cell__marks' }, marks) : null;
       }
     });
 

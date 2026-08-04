@@ -1392,6 +1392,59 @@ small { font-size: var(--fs-cap); }
 .mo-cell__dot.is-partial { background: var(--c-tip-warning); }
 .mo-cell__dot.is-on { background: var(--c-tip-success); }
 
+/* 日历格内标记容器（计划完成点 + 待办数量徽标均绝对定位于单元格） */
+.mo-cell__marks { position: static; }
+/* 工作待办数量徽标（莫兰迪主色软底） */
+.mo-cell__todo {
+  position: absolute;
+  top: 6px; right: 8px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: var(--fw-bold); line-height: 1;
+  color: var(--c-primary); background: var(--c-primary-soft);
+  border-radius: var(--r-pill);
+}
+
+/* ===================== 工作待办 · 日期选择 ===================== */
+.tl-todo-datebar {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
+}
+.tl-todo-count { margin: 2px 0 10px; font-size: var(--fs-cap); }
+
+/* 莫兰迪日历弹层选择器 */
+.tl-datepick { position: relative; }
+.tl-datepick__btn {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sub); font-weight: var(--fw-medium);
+  color: var(--c-text-body);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.tl-datepick__btn:hover { border-color: var(--c-primary); }
+.tl-datepick__btn::after { content: '\25BE'; color: var(--c-text-muted); font-size: 10px; margin-left: 2px; }
+.tl-datepick__pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 50;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .14);
+  padding: var(--sp-3);
+}
+.tl-datepick__pop .tl-calendar { background: transparent; }
+
+/* openDay 当日明细区块（日计划 + 工作待办） */
+.mo-day__section { margin-top: var(--sp-4); }
+.mo-day__section-title {
+  font-size: var(--fs-sub); font-weight: var(--fw-bold);
+  color: var(--c-text-body); margin-bottom: var(--sp-2);
+}
+.mo-day__actions { display: flex; gap: var(--sp-3); margin-top: var(--sp-5); flex-wrap: wrap; }
+
 /* 周历：本周周计划 */
 .mo-week-plans { margin-top: var(--sp-5); }
 .mo-week-plans__head {
@@ -1623,6 +1676,181 @@ small { font-size: var(--fs-cap); }
   /* 禁用 hover 缩放效果（触摸设备无 hover） */
   .tl-card--link:hover { transform: none; }
   .tl-btn:hover { transform: none; }
+}
+
+/* =====================================================================
+   全局底部状态栏（固定底栏 · 云端连接实时状态）
+   ---------------------------------------------------------------------
+   布局（左→右）：云端同步 | 代码部署 | Vercel | 明暗切换 | 设置
+   全部圆角胶囊，复用 .tl-sync 基础样式 + 状态色令牌
+   ===================================================================== */
+.tl-statusbar {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
+  background: color-mix(in srgb, var(--c-surface) 90%, transparent);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  border-top: 1px solid var(--c-border);
+  /* 为底部状态栏预留空间，避免遮挡页面内容 */
+  padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom, 0px));
+}
+
+/* 底部状态栏胶囊 pill —— 复用 .tl-sync 视觉规范，增加底部专用微调 */
+.tl-statusbar__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 34px;
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
+  color: var(--c-text-sub);
+  font-size: var(--fs-cap);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+              transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tl-statusbar__pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--c-border-strong);
+  box-shadow: var(--sh-1);
+}
+.tl-statusbar__pill:active {
+  transform: translateY(0);
+}
+
+/* 底部状态栏圆点 */
+.tl-statusbar__dot {
+  width: 8px; height: 8px;
+  border-radius: var(--r-pill);
+  flex: none;
+  transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+/* 底部状态栏文字 */
+.tl-statusbar__text {
+  font-size: var(--fs-cap);
+  line-height: 1;
+  letter-spacing: .02em;
+}
+
+/* ---- 状态色：已连接 / 已就绪 / 已连通（绿色） ---- */
+.tl-statusbar__pill[data-sb="connected"],
+.tl-statusbar__pill[data-sb="ready"] {
+  color: var(--c-tip-success);
+  background: var(--c-tip-success-soft);
+  border-color: transparent;
+}
+.tl-statusbar__pill[data-sb="connected"] .tl-statusbar__dot,
+.tl-statusbar__pill[data-sb="ready"] .tl-statusbar__dot {
+  background: var(--c-tip-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-tip-success) 22%, transparent);
+}
+
+/* ---- 状态色：同步中 / 推送中 / 构建中 / 查询中（蓝色/黄色脉冲） ---- */
+.tl-statusbar__pill[data-sb="syncing"],
+.tl-statusbar__pill[data-sb="pushing"],
+.tl-statusbar__pill[data-sb="building"],
+.tl-statusbar__pill[data-sb="checking"] {
+  color: var(--c-tip-info);
+  background: var(--c-tip-info-soft);
+  border-color: transparent;
+}
+.tl-statusbar__pill[data-sb="syncing"] .tl-statusbar__dot,
+.tl-statusbar__pill[data-sb="pushing"] .tl-statusbar__dot,
+.tl-statusbar__pill[data-sb="building"] .tl-statusbar__dot,
+.tl-statusbar__pill[data-sb="checking"] .tl-statusbar__dot {
+  background: var(--c-tip-warning);          /* 黄色更醒目，符合"正在"语义 */
+  animation: tl-pulse 1s infinite var(--ease);
+}
+
+/* ---- 状态色：未连接 / 待部署 / 未绑定 / 离线（灰色） ---- */
+.tl-statusbar__pill[data-sb="disconnected"],
+.tl-statusbar__pill[data-sb="pending-deploy"],
+.tl-statusbar__pill[data-sb="unlinked"],
+.tl-statusbar__pill[data-sb="offline"] {
+  color: var(--c-text-muted);
+  background: var(--c-bg-soft);
+  border-color: transparent;
+}
+.tl-statusbar__pill[data-sb="disconnected"] .tl-statusbar__dot,
+.tl-statusbar__pill[data-sb="pending-deploy"] .tl-statusbar__dot,
+.tl-statusbar__pill[data-sb="unlinked"] .tl-statusbar__dot,
+.tl-statusbar__pill[data-sb="offline"] .tl-statusbar__dot {
+  background: var(--c-text-muted);
+}
+
+/* ---- 状态色：同步失败 / 部署失败（红色） ---- */
+.tl-statusbar__pill[data-sb="error"] {
+  color: var(--c-tip-danger);
+  background: var(--c-tip-danger-soft);
+  border-color: transparent;
+}
+.tl-statusbar__pill[data-sb="error"] .tl-statusbar__dot {
+  background: var(--c-tip-danger);
+}
+
+/* ---- 底部状态栏操作按钮（明暗切换 / 设置） ---- */
+.tl-statusbar__btn {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-pill);
+  background: var(--c-surface-2);
+  color: var(--c-text-sub);
+  font-size: 15px;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease), border-color var(--dur) var(--ease),
+              background var(--dur) var(--ease), color var(--dur) var(--ease);
+  flex: none;
+}
+.tl-statusbar__btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--c-border-strong);
+  background: var(--c-secondary-bg-hover);
+  color: var(--c-text-body);
+}
+.tl-statusbar__btn:active { transform: translateY(0); }
+
+/* 页面主内容区为底部状态栏留出空间 */
+body.has-statusbar .tl-main {
+  padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+}
+body.has-statusbar .tl-toasts {
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ============================== 底部状态栏响应式 ============================== */
+@media (max-width: 768px) {
+  .tl-statusbar { gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); }
+  .tl-statusbar__pill { height: 30px; padding: 0 var(--sp-3); font-size: 11px; }
+  .tl-statusbar__btn { width: 30px; height: 30px; font-size: 13px; }
+  .tl-statusbar__text { font-size: 11px; }
+  body.has-statusbar .tl-main { padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 480px) {
+  .tl-statusbar { gap: var(--sp-1); padding: var(--sp-2) var(--sp-2); justify-content: space-between; }
+  .tl-statusbar__pill { height: 28px; padding: 0 var(--sp-2); font-size: 10px; }
+  .tl-statusbar__pill .tl-statusbar__text { max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+  .tl-statusbar__btn { width: 28px; height: 28px; font-size: 12px; }
+  body.has-statusbar .tl-main { padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 380px) {
+  .tl-statusbar__pill .tl-statusbar__text { max-width: 56px; }
+  .tl-statusbar__btn { width: 26px; height: 26px; font-size: 11px; }
 }
 
 /* =====================================================================
