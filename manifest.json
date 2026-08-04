@@ -2,7 +2,7 @@
   "name": "TEST-LEGUME 个人工作台",
   "short_name": "LEGUME",
   "description": "多端同步的个人工作学习管理平台",
-  "start_url": "/",
+  "start_url": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#F2EFEA",
