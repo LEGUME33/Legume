@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="TEST-LEGUME 个人工作台 · 总览">
+<meta name="theme-color" content="#8C9A8E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LEGUME">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%238C9A8E'/><text x='96' y='122' font-size='84' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>TL</text></svg>">
+<title>总览 · TEST-LEGUME 个人工作台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%238C9A8E'/><text x='16' y='22' font-size='15' text-anchor='middle' fill='white' font-family='sans-serif'>TL</text></svg>">
+<link rel="stylesheet" href="./assets/css/tokens.css">
+<link rel="stylesheet" href="./assets/css/app.css">
+</head>
+<body data-page="overview">
+
+<main class="tl-main">
+  <div class="tl-page-head">
+    <h1 class="tl-page-title">总览</h1>
+    <p class="tl-page-desc">聚合工作与学习两大模块的今日进展。点击任意预览卡片可直达对应功能详情页；所有数据本地即时保存，并自动双向同步至 GitHub 私有仓库。</p>
+  </div>
+
+  <!-- 云端同步状态（顶栏指示器之外的详情条） -->
+  <section id="ov-sync"></section>
+
+  <!-- 工作模块预览 -->
+  <h2 class="tl-section-title">工作模块 <small id="ov-work-date"></small></h2>
+  <section class="tl-grid tl-grid--3" id="ov-work"></section>
+
+  <!-- 学习模块预览 -->
+  <h2 class="tl-section-title">学习模块 <small>今日学习 · 30 天打卡</small></h2>
+  <section class="tl-grid tl-grid--3" id="ov-study-metrics"></section>
+  <section style="margin-top:20px" id="ov-study-topics"></section>
+
+  <!-- 操作记录 -->
+  <h2 class="tl-section-title">最近操作 <small>多设备留痕 · 同步至 data/activity.json</small></h2>
+  <section id="ov-activity"></section>
+</main>
+
+<script src="./assets/js/store.js"></script>
+<script src="./assets/js/github.js"></script>
+<script src="./assets/js/media.js"></script>
+<script src="./assets/js/sync.js"></script>
+<script src="./assets/js/deploy.js"></script>
+<script src="./assets/js/vercel.js"></script>
+<script src="./assets/js/ui.js"></script>
+<script src="./assets/js/pages/overview.js"></script>
+<script src="./assets/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "TEST-LEGUME 个人工作台",
+  "short_name": "LEGUME",
+  "description": "多端同步的个人工作学习管理平台",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F2EFEA",
+  "theme_color": "#8C9A8E",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%238C9A8E'/><text x='96' y='122' font-size='84' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>TL</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%238C9A8E'/><text x='256' y='320' font-size='220' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>TL</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

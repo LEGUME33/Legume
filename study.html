@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="TEST-LEGUME 个人工作台 · 学习">
+<meta name="theme-color" content="#8C9A8E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LEGUME · 学习">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%238C9A8E'/><text x='96' y='122' font-size='84' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>TL</text></svg>">
+<title>学习 · TEST-LEGUME 个人工作台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%238C9A8E'/><text x='16' y='22' font-size='15' text-anchor='middle' fill='white' font-family='sans-serif'>TL</text></svg>">
+<link rel="stylesheet" href="./assets/css/tokens.css">
+<link rel="stylesheet" href="./assets/css/app.css">
+</head>
+<body data-page="study">
+
+<main class="tl-main">
+  <div class="tl-page-head">
+    <h1 class="tl-page-title">学习</h1>
+    <p class="tl-page-desc">以「学习计划主题」为单位的统一学习区：年度模板 · 月度目标 · 网盘课程库 · 今日计划 · 30 天打卡，全部本地 + GitHub 双端云端同步。</p>
+  </div>
+
+  <!-- 子页面导航：学习计划（第一个子页面）/ 今日热点（后续） -->
+  <div class="tl-tabs" id="sd-pages"></div>
+
+  <!-- ===================== 学习计划 ===================== -->
+  <section id="sd-plan-section">
+    <!-- 主题切换条 -->
+    <div class="sd-plan-bar" id="sd-plan-bar"></div>
+    <!-- 五大板块 -->
+    <div class="sd-plan-grid" id="sd-plan-grid"></div>
+  </section>
+
+  <!-- ===================== 今日热点 ===================== -->
+  <section id="sd-hotspot-section" style="display:none">
+    <div class="sd-hotspot-themes" id="sd-hotspot-themes"></div>
+    <div id="sd-hotspots"></div>
+  </section>
+</main>
+
+<script src="./assets/js/store.js"></script>
+<script src="./assets/js/github.js"></script>
+<script src="./assets/js/media.js"></script>
+<script src="./assets/js/sync.js"></script>
+<script src="./assets/js/deploy.js"></script>
+<script src="./assets/js/vercel.js"></script>
+<script src="./assets/js/ui.js"></script>
+<script src="./assets/js/pages/study.js"></script>
+<script src="./assets/js/app.js"></script>
+</body>
+</html>

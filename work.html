@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="description" content="TEST-LEGUME 个人工作台 · 工作">
+<meta name="theme-color" content="#8C9A8E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="LEGUME · 工作">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%238C9A8E'/><text x='96' y='122' font-size='84' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>TL</text></svg>">
+<title>工作 · TEST-LEGUME 个人工作台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%238C9A8E'/><text x='16' y='22' font-size='15' text-anchor='middle' fill='white' font-family='sans-serif'>TL</text></svg>">
+<link rel="stylesheet" href="./assets/css/tokens.css">
+<link rel="stylesheet" href="./assets/css/app.css">
+</head>
+<body data-page="work">
+
+<main class="tl-main">
+  <div class="tl-page-head">
+    <h1 class="tl-page-title">工作</h1>
+    <p class="tl-page-desc">计划、待办与复盘的统一工作区。全部条目共用同一套勾选交互与同步链路，后续细分模块可直接挂载到本页标签体系。</p>
+  </div>
+
+  <div class="tl-tabs" id="wk-tabs"></div>
+
+  <section id="wk-monthly-section">
+    <div id="mo-filter"></div>
+    <div id="mo-cal"></div>
+    <div id="mo-week"></div>
+  </section>
+
+  <section id="wk-plans-section" style="display:none">
+    <div id="wk-plans"></div>
+  </section>
+
+  <section id="wk-todos-section" style="display:none">
+    <div id="wk-todos"></div>
+  </section>
+
+  <section id="wk-reviews-section" style="display:none">
+    <div id="wk-reviews"></div>
+  </section>
+</main>
+
+<script src="./assets/js/store.js"></script>
+<script src="./assets/js/github.js"></script>
+<script src="./assets/js/media.js"></script>
+<script src="./assets/js/sync.js"></script>
+<script src="./assets/js/deploy.js"></script>
+<script src="./assets/js/vercel.js"></script>
+<script src="./assets/js/ui.js"></script>
+<script src="./assets/js/ai.js"></script>
+<script src="./assets/js/review.js"></script>
+<script src="./assets/js/review-upload.js"></script>
+<script src="./assets/js/pages/monthly.js"></script>
+<script src="./assets/js/pages/work.js"></script>
+<script src="./assets/js/app.js"></script>
+</body>
+</html>

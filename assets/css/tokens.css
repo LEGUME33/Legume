@@ -1,0 +1,162 @@
+/* =====================================================================
+   TEST-LEGUME · 全局设计令牌 (Design Tokens) —— 唯一色彩与尺寸真源
+   ---------------------------------------------------------------------
+   强制规范：
+   1. 全站莫兰迪色系，任何页面、任何模块禁止硬编码色值，只允许引用本文件变量。
+   2. 五级色彩层级（严格区分，不得混用）：
+        L1 正文文字      --c-text-body      正文、标题、关键数字
+        L2 辅助说明文字  --c-text-sub       说明、副标题、时间戳（--c-text-muted 为更弱一档）
+        L3 主按钮        --c-primary-*      页面唯一主行动点
+        L4 次按钮        --c-secondary-*    次级、可逆操作
+        L5 提示色        --c-tip-*          成功 / 警告 / 危险 / 信息
+   3. 所有卡片、输入框、表单、按钮、弹窗、模块容器一律使用 --r-* 圆角。
+   4. 深色主题复用同名语义变量，组件层无需写任何深色分支。
+   ===================================================================== */
+
+:root {
+  /* ================= 莫兰迪原色板（低饱和灰调基色，仅供语义层引用） ================= */
+  --mor-sage:       #8C9A8E;   /* 鼠尾草绿 · 品牌主色 */
+  --mor-sage-deep:  #74836F;   /* 主色加深 */
+  --mor-sage-light: #A8B5A8;   /* 主色提亮 */
+  --mor-clay:       #B9A29B;   /* 陶土粉 */
+  --mor-lilac:      #A79AA5;   /* 藕荷紫 */
+  --mor-mist:       #93A7B8;   /* 雾霾蓝 */
+  --mor-sand:       #D0BB98;   /* 燕麦沙 */
+  --mor-rose:       #C08B87;   /* 干枯玫瑰 */
+  --mor-stone:      #A39C93;   /* 灰岩 */
+
+  /* ===================== L1 · 正文文字 ===================== */
+  --c-text-body:    #3A3733;   /* 正文（最高对比，承载主要信息） */
+  --c-text-strong:  #26241F;   /* 标题强调 */
+  --c-text-invert:  #FBF9F6;   /* 深底反白文字 */
+
+  /* ===================== L2 · 辅助说明文字 ===================== */
+  --c-text-sub:     #6F6A63;   /* 辅助说明、副标题 */
+  --c-text-muted:   #A39C93;   /* 弱化：占位符、时间戳、禁用 */
+
+  /* ===================== L3 · 主按钮 ===================== */
+  --c-primary:       var(--mor-sage);
+  --c-primary-hover: var(--mor-sage-deep);
+  --c-primary-text:  #FFFFFF;
+  --c-primary-soft:  rgba(140, 154, 142, .14);   /* 主色浅底：选中态 / 标签 */
+  --c-primary-ring:  rgba(140, 154, 142, .34);   /* 焦点环 */
+
+  /* ===================== L4 · 次按钮 ===================== */
+  --c-secondary-bg:       transparent;
+  --c-secondary-bg-hover: rgba(140, 154, 142, .10);
+  --c-secondary-border:   #CFC6BB;
+  --c-secondary-text:     var(--c-text-body);
+
+  /* ===================== L5 · 提示色（状态语义） ===================== */
+  --c-tip-success:      #7F9A80;
+  --c-tip-success-soft: rgba(127, 154, 128, .16);
+  --c-tip-warning:      #C79A5B;
+  --c-tip-warning-soft: rgba(199, 154, 91, .18);
+  --c-tip-danger:       #B87370;
+  --c-tip-danger-soft:  rgba(184, 115, 112, .16);
+  --c-tip-info:         var(--mor-mist);
+  --c-tip-info-soft:    rgba(147, 167, 184, .18);
+
+  /* ===================== 界面容器 ===================== */
+  --c-bg:          #F2EFEA;    /* 页面底色 */
+  --c-bg-soft:     #EBE7E1;    /* 次级底色 */
+  --c-surface:     #FBF9F6;    /* 卡片 / 弹窗表面 */
+  --c-surface-2:   #F5F2ED;    /* 卡片内嵌区块 */
+  --c-border:      #E1DAD1;    /* 常规描边 */
+  --c-border-strong: #CFC6BB;  /* 输入框 / 次按钮描边 */
+  --c-overlay:     rgba(38, 36, 31, .42);
+  --c-track:       #E4DED6;    /* 进度条 / 热力图空格底 */
+
+  /* ===================== 圆角（全站统一，禁止裸写 px） ===================== */
+  --r-xs:   8px;    /* 标签、色块 */
+  --r-sm:  10px;    /* 小按钮、热力图格 */
+  --r-md:  14px;    /* 输入框、按钮、列表项 */
+  --r-lg:  18px;    /* 卡片、模块容器 */
+  --r-xl:  24px;    /* 弹窗、大面板 */
+  --r-pill: 999px;  /* 胶囊：状态角标、导航项 */
+
+  /* ===================== 间距刻度（4 的倍数） ===================== */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 56px;
+
+  /* ===================== 字体与排版刻度 ===================== */
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei",
+               -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC",
+               system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Courier New", monospace;
+
+  --fs-display: 30px;   /* 关键数字 */
+  --fs-h1:      24px;
+  --fs-h2:      19px;
+  --fs-h3:      16px;
+  --fs-body:    14px;   /* 正文基准 */
+  --fs-sub:     13px;   /* 辅助说明 */
+  --fs-cap:     12px;   /* 标注 */
+
+  --lh-tight: 1.28;
+  --lh-base:  1.62;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-bold:    600;
+
+  /* ===================== 阴影 / 动效 ===================== */
+  --sh-1: 0 1px 2px rgba(58, 55, 51, .05);
+  --sh-2: 0 6px 18px rgba(58, 55, 51, .07);
+  --sh-3: 0 18px 44px rgba(58, 55, 51, .13);
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --dur:  .28s;
+  --dur-fast: .16s;
+
+  /* ===================== 布局 ===================== */
+  --page-max:  1180px;
+  --topbar-h:  58px;
+  --nav-h:     50px;
+}
+
+/* ===================== 深色主题：复用同名语义变量 ===================== */
+html[data-theme="dark"] {
+  --c-text-body:   #EAE5DE;
+  --c-text-strong: #F7F3ED;
+  --c-text-invert: #22201E;
+  --c-text-sub:    #B2AAA0;
+  --c-text-muted:  #857E75;
+
+  --c-primary:       #9DB09F;
+  --c-primary-hover: #B2C3B4;
+  --c-primary-text:  #1F2420;
+  --c-primary-soft:  rgba(157, 176, 159, .16);
+  --c-primary-ring:  rgba(157, 176, 159, .38);
+
+  --c-secondary-bg-hover: rgba(157, 176, 159, .12);
+  --c-secondary-border:   #4A453F;
+
+  --c-tip-success:      #93AE94;
+  --c-tip-success-soft: rgba(147, 174, 148, .18);
+  --c-tip-warning:      #D6AE74;
+  --c-tip-warning-soft: rgba(214, 174, 116, .20);
+  --c-tip-danger:       #CB8A87;
+  --c-tip-danger-soft:  rgba(203, 138, 135, .18);
+  --c-tip-info:         #A3B6C6;
+  --c-tip-info-soft:    rgba(163, 182, 198, .20);
+
+  --c-bg:            #201E1C;
+  --c-bg-soft:       #262421;
+  --c-surface:       #2A2825;
+  --c-surface-2:     #322F2B;
+  --c-border:        #3A3733;
+  --c-border-strong: #4A453F;
+  --c-overlay:       rgba(0, 0, 0, .58);
+  --c-track:         #38352F;
+
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .30);
+  --sh-2: 0 6px 18px rgba(0, 0, 0, .34);
+  --sh-3: 0 18px 44px rgba(0, 0, 0, .48);
+}
