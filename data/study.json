@@ -1,8 +1,106 @@
 {
   "schema": 1,
+  "plans": [
+    {
+      "id": "pl_mserfib1sv1o9",
+      "name": "AI",
+      "builtin": true,
+      "createdAt": 1785854115181,
+      "annual": {
+        "goal": ""
+      },
+      "monthly": [],
+      "courses": [],
+      "checkins": [],
+      "assignments": {}
+    },
+    {
+      "id": "pl_mserfib1c5eo8",
+      "name": "产品经理",
+      "builtin": true,
+      "createdAt": 1785854115181,
+      "annual": {
+        "goal": ""
+      },
+      "monthly": [],
+      "courses": [],
+      "checkins": [],
+      "assignments": {}
+    },
+    {
+      "id": "pl_mserfib10myxa",
+      "name": "大数据模型",
+      "builtin": true,
+      "createdAt": 1785854115181,
+      "annual": {
+        "goal": ""
+      },
+      "monthly": [],
+      "courses": [],
+      "checkins": [],
+      "assignments": {}
+    }
+  ],
+  "currentPlanId": "pl_mserfib1sv1o9",
   "topics": [],
   "courses": [],
   "tasks": [],
-  "hotspots": [],
-  "updatedAt": 0
+  "hotspots": [
+    {
+      "id": "hs_msfabg2ana6am",
+      "title": "arXiv 人工智能最新论文",
+      "url": "https://arxiv.org/list/cs.AI/recent",
+      "source": "push",
+      "themeId": "pl_mserfib1sv1o9",
+      "themeName": "AI",
+      "date": "2026-08-05",
+      "read": false,
+      "ts": 1785885838354
+    },
+    {
+      "id": "hs_msfabg2au7lbp",
+      "title": "PyTorch 官方文档",
+      "url": "https://pytorch.org/",
+      "source": "push",
+      "themeId": "pl_mserfib1sv1o9",
+      "themeName": "AI",
+      "date": "2026-08-05",
+      "read": false,
+      "ts": 1785885838354
+    },
+    {
+      "id": "hs_msfabg2abdoy5",
+      "title": "Anthropic 研究",
+      "url": "https://www.anthropic.com/research",
+      "source": "push",
+      "themeId": "pl_mserfib1sv1o9",
+      "themeName": "AI",
+      "date": "2026-08-05",
+      "read": false,
+      "ts": 1785885838354
+    },
+    {
+      "id": "hs_msfabg2aa2ibx",
+      "title": "The Batch（deeplearning.ai）",
+      "url": "https://www.deeplearning.ai/the-batch/",
+      "source": "push",
+      "themeId": "pl_mserfib1sv1o9",
+      "themeName": "AI",
+      "date": "2026-08-05",
+      "read": false,
+      "ts": 1785885838354
+    },
+    {
+      "id": "hs_msfabg2aha4hu",
+      "title": "OpenAI 官方博客",
+      "url": "https://openai.com/news/",
+      "source": "push",
+      "themeId": "pl_mserfib1sv1o9",
+      "themeName": "AI",
+      "date": "2026-08-05",
+      "read": false,
+      "ts": 1785885838354
+    }
+  ],
+  "updatedAt": 1785885838354
 }
