@@ -1857,6 +1857,46 @@ small { font-size: var(--fs-cap); }
   background: var(--c-tip-danger);
 }
 
+/* ---- 状态色：正在拉取云端数据（蓝色脉冲） ---- */
+.tl-statusbar__pill[data-sb="pulling"] {
+  color: var(--c-tip-info);
+  background: var(--c-tip-info-soft);
+  border-color: transparent;
+}
+.tl-statusbar__pill[data-sb="pulling"] .tl-statusbar__dot {
+  background: var(--c-tip-info);
+  animation: tl-pulse 1s infinite var(--ease);
+}
+
+/* ---- 状态色：云端数据已更新（绿色高亮 + 闪动提醒版本差异） ---- */
+.tl-statusbar__pill[data-sb="updated"] {
+  color: var(--c-tip-success);
+  background: var(--c-tip-success-soft);
+  border-color: transparent;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-tip-success) 35%, transparent);
+  animation: tl-flash 1.4s var(--ease);
+}
+.tl-statusbar__pill[data-sb="updated"] .tl-statusbar__dot {
+  background: var(--c-tip-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-tip-success) 22%, transparent);
+}
+
+/* ---- 状态色：存在本地未同步变更（琥珀色） ---- */
+.tl-statusbar__pill[data-sb="pending"] {
+  color: var(--c-tip-warning);
+  background: var(--c-tip-warning-soft);
+  border-color: transparent;
+}
+.tl-statusbar__pill[data-sb="pending"] .tl-statusbar__dot {
+  background: var(--c-tip-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-tip-warning) 22%, transparent);
+}
+
+@keyframes tl-flash {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-tip-success) 55%, transparent); }
+  100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-tip-success) 35%, transparent); }
+}
+
 /* ---- 底部状态栏操作按钮（明暗切换 / 设置） ---- */
 .tl-statusbar__btn {
   width: 34px; height: 34px;
@@ -1907,6 +1947,35 @@ body.has-statusbar .tl-toasts {
 @media (max-width: 380px) {
   .tl-statusbar__pill .tl-statusbar__text { max-width: 56px; }
   .tl-statusbar__btn { width: 26px; height: 26px; font-size: 11px; }
+}
+
+/* ============ 移动端兼容 · 触屏优化 ============ */
+/* 底部状态栏窄屏横向滚动，避免胶囊被压缩 */
+@media (max-width: 640px) {
+  .tl-statusbar {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tl-statusbar::-webkit-scrollbar { display: none; }
+  .tl-statusbar__pill,
+  .tl-statusbar__btn { flex: none; }
+  .tl-statusbar__btn { width: 44px; height: 44px; font-size: 16px; }
+  .tl-statusbar__pill { height: 40px; padding: 0 var(--sp-4); }
+  /* 弹窗顶部对齐并可滚动，避免软键盘遮挡底部内容 */
+  .tl-modal { align-items: start; padding-top: 8vh; overflow-y: auto; }
+  .tl-modal__panel { max-height: 84vh; }
+}
+
+/* 触屏设备：触控目标最小尺寸 ≥44px，去除点击延迟 */
+@media (hover: none) and (pointer: coarse) {
+  .tl-btn { min-height: 44px; }
+  .tl-tab { min-height: 44px; }
+  .tl-task__edit, .tl-task__del { min-width: 40px; min-height: 40px; }
+  .tl-statusbar__btn { width: 44px; height: 44px; }
+  button, input, textarea, select, a, [role="checkbox"] { touch-action: manipulation; }
+}
 }
 
 /* =====================================================================

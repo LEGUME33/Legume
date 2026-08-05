@@ -65,6 +65,7 @@ window.TL = window.TL || {};
   var cache = {};       // 内存副本
   var settings = null;  // 本地设置
   var listeners = [];   // 变更订阅者
+  var blobCache = {};   // 图片 dataURL 内存缓存（同步读取，避免渲染阻塞）
 
   /* ------------------------------ 本地自动保存（第二层之前的兜底） ------------------------------
      规范要求：每 30 秒检测并落盘 localStorage；关闭/刷新/切后台前强制落盘；
@@ -94,6 +95,10 @@ window.TL = window.TL || {};
       if (TL.UI && TL.UI.toast) TL.UI.toast('本地存储写入失败，请清理图片缓存或浏览器数据', 'error', 4200);
       return false;
     }
+  }
+
+  function lsDel(key) {
+    try { localStorage.removeItem(key); } catch (e) {}
   }
 
   function uid(prefix) {
@@ -132,10 +137,15 @@ window.TL = window.TL || {};
    */
   function flushLocal() {
     var wrote = localDirty;
-    if (localDirty) {                       // 仅当确有未保存改动时才写盘，避免无谓的 localStorage 写入
+    if (localDirty) {                       // 仅当确有未保存改动时才写盘，避免无谓的写入
       CATS.forEach(function (cat) { persist(cat); });
-      if (settings) lsSet(NS + '.settings', settings);
-      lsSet(NS + '.meta', TL.Store.meta());
+      if (settings) {
+        lsSet(NS + '.settings', settings);
+        if (TL.KV && TL.KV.hasIDB) TL.KV.set(NS + '.settings', settings).catch(function () {});
+      }
+      var m = TL.Store.meta();
+      lsSet(NS + '.meta', m);
+      if (TL.KV && TL.KV.hasIDB) TL.KV.set(NS + '.meta', m).catch(function () {});
       localDirty = false;
       localLastSavedAt = Date.now();
     }
@@ -296,7 +306,39 @@ window.TL = window.TL || {};
     return cache[cat];
   }
 
-  function persist(cat) { lsSet(NS + '.' + cat, cache[cat]); }
+  /* 浏览器专用：从 IndexedDB 水合权威数据到内存缓存，完成后触发重绘。
+     采用「双写镜像」策略——localStorage 始终作为即时可读镜像（含弱网/隐私模式兜底），
+     IndexedDB 为容量更大的主存储；即使隐私模式清空 localStorage，IndexedDB 仍保有完整数据。 */
+  function hydrateFromIDB() {
+    if (!TL.KV || !TL.KV.hasIDB) return;
+    TL.KV.migrateFromLocalStorage().then(function () {
+      return TL.KV.get(NS + '.settings');
+    }).then(function (s) {
+      if (s) settings = Object.assign(DEFAULT_SETTINGS, s);
+      return TL.KV.get(NS + '.meta');
+    }).then(function () {
+      return TL.KV.keys(NS + '.blob.');
+    }).then(function (blobKeys) {
+      return Promise.all(blobKeys.map(function (k) {
+        return TL.KV.get(k).then(function (v) { if (v != null) blobCache[k.slice((NS + '.blob.').length)] = v; });
+      }));
+    }).then(function () {
+      return Promise.all(CATS.map(function (cat) {
+        return TL.KV.get(NS + '.' + cat).then(function (v) {
+          if (v) { cache[cat] = Object.assign(DEFAULTS[cat] ? DEFAULTS[cat]() : {}, v); migrate(cat, cache[cat]); }
+        });
+      }));
+    }).then(function () {
+      emit('change', { cat: '*', action: 'hydrated', silent: true });   // 触发页面重绘
+    }).catch(function (e) { console.warn('[Store] IndexedDB 水合失败，继续使用本地镜像', e); });
+  }
+
+  function persist(cat) {
+    var data = clone(cache[cat]);
+    lsSet(NS + '.' + cat, data);                 // 镜像：即时可读、弱网/隐私模式兜底
+    if (TL.KV && TL.KV.hasIDB) TL.KV.set(NS + '.' + cat, data).catch(function () {});  // 主存储：IndexedDB
+    return true;
+  }
 
   /**
    * 修改业务数据的唯一入口
@@ -476,7 +518,15 @@ window.TL = window.TL || {};
     last30Days: last30Days,
     clone: clone,
 
-    init: function () { loadSettings(); CATS.forEach(load); ensureStudyPresets(); startAutosave(); return this; },
+    init: function () {
+      loadSettings();
+      CATS.forEach(load);                 // 同步：localStorage 镜像 → 内存缓存（首屏即时可用）
+      ensureStudyPresets();
+      startAutosave();
+      if (TL.KV && TL.KV.hasIDB) hydrateFromIDB();                              // 浏览器：异步从 IndexedDB 拉取权威数据并重绘
+      else if (TL.KV && TL.KV.migrateFromLocalStorage) TL.KV.migrateFromLocalStorage().catch(function () {});
+      return this;
+    },
 
     get: load,
     update: update,
@@ -494,22 +544,37 @@ window.TL = window.TL || {};
     saveSettings: function (patch) {
       settings = Object.assign(loadSettings(), patch || {});
       lsSet(NS + '.settings', settings);
+      if (TL.KV && TL.KV.hasIDB) TL.KV.set(NS + '.settings', settings).catch(function () {});
       markLocalDirty();
       emit('settings', settings);
       return settings;
     },
 
     /* 本地二进制缓存（图片 dataURL），独立键存放，避免撑大业务 JSON */
-    blobGet: function (id) { try { return localStorage.getItem(NS + '.blob.' + id); } catch (e) { return null; } },
-    blobSet: function (id, dataUrl) {
-      try { localStorage.setItem(NS + '.blob.' + id, dataUrl); return true; }
-      catch (e) { console.error('[Store] 图片缓存写入失败', e); return false; }
+    blobGet: function (id) {
+      if (id in blobCache) return blobCache[id];
+      var v = lsGet(NS + '.blob.' + id);
+      blobCache[id] = v == null ? '' : v;
+      return blobCache[id];
     },
-    blobDel: function (id) { try { localStorage.removeItem(NS + '.blob.' + id); } catch (e) {} },
+    blobSet: function (id, dataUrl) {
+      blobCache[id] = dataUrl;
+      lsSet(NS + '.blob.' + id, dataUrl);   // 镜像
+      if (TL.KV && TL.KV.hasIDB) TL.KV.set(NS + '.blob.' + id, dataUrl).catch(function () {});  // 主存储
+      return true;
+    },
+    blobDel: function (id) {
+      delete blobCache[id];
+      lsDel(NS + '.blob.' + id);
+      if (TL.KV && TL.KV.hasIDB) TL.KV.del(NS + '.blob.' + id).catch(function () {});
+    },
 
     /* 同步元信息：各文件 sha 缓存，减少 API 往返 */
     meta: function () { return lsGet(NS + '.meta', { sha: {}, remoteUpdatedAt: {} }); },
-    saveMeta: function (meta) { lsSet(NS + '.meta', meta); },
+    saveMeta: function (meta) {
+      lsSet(NS + '.meta', meta);
+      if (TL.KV && TL.KV.hasIDB) TL.KV.set(NS + '.meta', meta).catch(function () {});
+    },
 
     on: function (fn) {
       listeners.push(fn);

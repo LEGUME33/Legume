@@ -9,7 +9,7 @@ const ROOT = path.resolve(__dirname, '..');
 const ASSETS = path.join(ROOT, 'assets', 'js');
 const PAGES = ['index.html', 'work.html', 'study.html'];
 const SCRIPTS = [
-  'store.js', 'github.js', 'media.js', 'sync.js', 'deploy.js', 'vercel.js', 'ui.js',
+  'kv.js', 'store.js', 'github.js', 'media.js', 'sync.js', 'deploy.js', 'vercel.js', 'ui.js',
   'ai.js', 'review.js',
   path.join('pages', 'overview.js'),
   path.join('pages', 'work.js'),

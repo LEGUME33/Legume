@@ -22,6 +22,14 @@ window.TL.pages = window.TL.pages || {};
     /* ② 全站外壳：顶栏 + 常驻同步指示器 + 三大导航 */
     TL.UI.mountShell(key);
 
+    /* ②-b 移动端：输入框/文本域聚焦时滚动到可视区中部，避免软键盘遮挡 */
+    document.addEventListener('focusin', function (e) {
+      var t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        setTimeout(function () { try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) {} }, 300);
+      }
+    });
+
     /* ③ 当前页面 */
     var page = TL.pages[key];
     if (page && page.init) {

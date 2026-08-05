@@ -43,8 +43,8 @@ window.TL = window.TL || {};
   }
 
   function phaseOf(status) {
-    if (status === 'syncing') return 'syncing';
-    if (status === 'synced') return 'success';
+    if (status === 'syncing' || status === 'pulling' || status === 'pushing') return 'syncing';
+    if (status === 'synced' || status === 'updated') return 'success';
     if (status === 'error') return 'failed';
     return 'idle';
   }
@@ -142,7 +142,7 @@ window.TL = window.TL || {};
       return Promise.resolve({ skipped: true });
     }
 
-    setStatus('syncing', '正在拉取云端数据…');
+    setStatus('pulling', '正在拉取云端数据…');
     var meta = TL.Store.meta();
     var applied = [], merged = [], keptLocal = [];
 
@@ -189,7 +189,16 @@ window.TL = window.TL || {};
       TL.Store.saveSettings({ lastPullAt: state.lastPullAt });
       state.lastError = '';
       TL.Store.emit('change', { cat: '*', action: 'pulled', silent: true });
-      if (hasDirty()) schedule(); else refreshIdleStatus();
+      // 版本差异（云端覆盖/合并）时高亮提醒「云端数据已更新」
+      var changed = (applied.length || merged.length);
+      if (changed) {
+        setStatus('updated', '云端数据已更新 · ' + timeAgo(state.lastPullAt));
+        setTimeout(function () { if (state.status === 'updated') refreshIdleStatus(); }, 2500);
+      } else if (hasDirty()) {
+        schedule();
+      } else {
+        refreshIdleStatus();
+      }
       // 顺带把仅存在本地的图片补传到仓库
       if (TL.Media) TL.Media.uploadPending().catch(function () {});
       return { applied: applied, merged: merged, keptLocal: keptLocal };
@@ -315,6 +324,17 @@ window.TL = window.TL || {};
       pull().catch(function () {});
     });
     window.addEventListener('offline', refreshIdleStatus);
+
+    // 切回前台自动检测云端版本（多端同步：手机/电脑切换时拉取最新）
+    var lastVisiblePull = 0;
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      var now = Date.now();
+      if (now - lastVisiblePull < 2000) return;   // 去抖，避免频繁切换标签反复拉取
+      lastVisiblePull = now;
+      refreshIdleStatus();
+      if (TL.GitHub.configured() && navigator.onLine) pull().catch(function () {});
+    });
 
     // 关闭页面前尽力推送，避免 60 秒冷却窗口内的数据丢失
     window.addEventListener('beforeunload', function () {

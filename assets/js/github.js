@@ -41,28 +41,49 @@ window.TL = window.TL || {};
   function request(path, options, ov) {
     var c = ov || cfg();
     var opts = options || {};
-    return fetch(API + path, {
-      method: opts.method || 'GET',
-      headers: Object.assign({
-        'Authorization': 'Bearer ' + (c.token || ''),
-        'Accept': 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28'
-      }, opts.headers || {}),
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-      cache: 'no-store'
-    }).then(function (res) {
-      if (res.status === 404) return { __notFound: true, __status: 404 };
-      if (res.status === 204) return {};
-      return res.json().catch(function () { return {}; }).then(function (json) {
-        if (!res.ok) {
-          var err = new Error(json.message || ('GitHub API ' + res.status));
-          err.status = res.status;
-          err.detail = json;
-          throw err;
-        }
-        return json;
+    var timeout = (opts.timeout != null) ? opts.timeout : 15000;   // 弱网：15s 超时
+    var maxRetry = (opts.retry != null) ? opts.retry : 1;          // 弱网：网络错误重试 1 次
+
+    function run(attempt) {
+      var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var p = fetch(API + path, {
+        method: opts.method || 'GET',
+        headers: Object.assign({
+          'Authorization': 'Bearer ' + (c.token || ''),
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28'
+        }, opts.headers || {}),
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        cache: 'no-store',
+        signal: ctrl ? ctrl.signal : undefined
       });
-    });
+      var timer = (ctrl && timeout) ? setTimeout(function () { ctrl.abort(); }, timeout) : null;
+
+      return p.then(function (res) {
+        if (timer) clearTimeout(timer);
+        if (res.status === 404) return { __notFound: true, __status: 404 };
+        if (res.status === 204) return {};
+        return res.json().catch(function () { return {}; }).then(function (json) {
+          if (!res.ok) {
+            var err = new Error(json.message || ('GitHub API ' + res.status));
+            err.status = res.status;
+            err.detail = json;
+            throw err;
+          }
+          return json;
+        });
+      }).catch(function (err) {
+        if (timer) clearTimeout(timer);
+        // 弱网：超时 / 网络中断 / DNS 失败 → 退避后重试一次，提升打开成功率
+        var canRetry = (attempt < maxRetry) &&
+          (err.name === 'AbortError' || /超时|Failed to fetch|network|NetworkError|load failed/i.test(err.message || ''));
+        if (canRetry) {
+          return new Promise(function (res) { setTimeout(res, 800 * attempt); }).then(function () { return run(attempt + 1); });
+        }
+        throw err;
+      });
+    }
+    return run(0);
   }
 
   TL.GitHub = {

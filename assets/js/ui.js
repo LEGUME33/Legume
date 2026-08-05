@@ -421,6 +421,7 @@ window.TL = window.TL || {};
       kv('本机标识', c.device),
       h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
         h('button', { class: 'tl-btn tl-btn--primary', text: '立即同步', onClick: doSyncNow }),
+        h('button', { class: 'tl-btn tl-btn--secondary', text: '拉取云端最新数据', onClick: doPull }),
         h('button', { class: 'tl-btn tl-btn--secondary', text: '历史版本回滚', onClick: openHistory }),
         h('button', { class: 'tl-btn tl-btn--ghost', text: '校验连接', onClick: doVerify })
       ])
@@ -522,6 +523,16 @@ window.TL = window.TL || {};
       }).catch(function (e) { toast('同步失败：' + e.message, 'error', 4600); });
     }
 
+    function doPull() {
+      if (needConfig()) return;
+      toast('正在拉取云端最新数据…');
+      TL.Sync.pull().then(function (r) {
+        var n = (r && ((r.applied ? r.applied.length : 0) + (r.merged ? r.merged.length : 0))) || 0;
+        toast(n ? ('云端数据已更新，本地 ' + n + ' 类已同步') : '本地已是最新', 'success');
+        TL.refreshPage && TL.refreshPage();
+      }).catch(function (e) { toast('拉取失败：' + e.message, 'error', 4600); });
+    }
+
     function doPagesInfo() {
       if (needConfig()) return;
       TL.GitHub.pagesInfo().then(function (p) {
@@ -563,6 +574,12 @@ window.TL = window.TL || {};
         Object.keys(localStorage).forEach(function (k) {
           if (k.indexOf(TL.Store.NS + '.blob.') === 0) localStorage.removeItem(k);
         });
+        // 同时清空 IndexedDB 主存储（多端一致）
+        if (TL.KV && TL.KV.hasIDB) {
+          TL.KV.keys(TL.Store.NS + '.').then(function (keys) {
+            keys.forEach(function (k) { TL.KV.del(k); });
+          }).catch(function () {});
+        }
         location.reload();
       });
     }
@@ -872,11 +889,12 @@ window.TL = window.TL || {};
   /** 将 TL.Sync / TL.Deploy / TL.Vercel 内部状态映射为底部状态栏的 sb 属性值 */
   function mapSyncState(s) {
     if (!navigator.onLine) return 'offline';
-    var phase = s.phase || 'idle';
     var status = s.status;
-    if (phase === 'syncing' || status === 'syncing') return 'syncing';
-    if (status === 'pending' || phase === 'pending') return 'syncing';   /* 待同步也显示"正在同步"态 */
-    if (status === 'error' || phase === 'failed') return 'error';
+    if (status === 'pulling') return 'pulling';                       /* 正在拉取云端数据 */
+    if (status === 'updated') return 'updated';                       /* 云端数据已更新（高亮） */
+    if (status === 'pending') return 'pending';                       /* 存在本地未同步变更 */
+    if (status === 'syncing' || status === 'pushing' || status === 'checking') return 'syncing';
+    if (status === 'error') return 'error';
     if (status === 'offline') return 'offline';
     if (!TL.GitHub.configured() || status === 'unconfigured') return 'disconnected';
     /* synced / idle → 已连接 */
@@ -888,6 +906,9 @@ window.TL = window.TL || {};
     var TEXT = {
       connected:  '已连接云端·自动同步',
       syncing:   '正在同步至GitHub',
+      pulling:   '正在拉取云端数据',
+      updated:   '云端数据已更新',
+      pending:   '存在本地未同步变更',
       error:     '同步失败',
       offline:   '离线模式',
       disconnected: '未连接云端·仅本地'
@@ -974,8 +995,14 @@ window.TL = window.TL || {};
     var bar = h('div', { id: 'tl-statusbar', class: 'tl-statusbar' }, [
       /* ① 云端同步（GitHub） */
       h('button', { class: 'tl-statusbar__pill', id: 'sb-sync', type: 'button', onClick: function () {
+        var verRows = TL.Store.CATS.map(function (cat) {
+          var d = TL.Store.get(cat);
+          return kv(cat + '.json', (d && d.updatedAt) ? fmtTime(d.updatedAt) : '—');
+        });
         showStatusDetail('云端同步详情', TL.Sync.state(), [
           kv('同步阶段', (TL.Sync.state().phase || 'idle').toUpperCase()),
+          h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '各数据文件版本（最近修改时间）：' }),
+          h('div', { class: 'tl-kv-grid', style: 'margin-top:4px' }, verRows),
           h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
             h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '立即同步', onClick: function () {
               if (TL.GitHub.configured()) { TL.Sync.syncNow().catch(function () {}); }
