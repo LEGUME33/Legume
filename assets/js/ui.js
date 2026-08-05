@@ -894,6 +894,7 @@ window.TL = window.TL || {};
     if (!navigator.onLine) return 'offline';
     if (s.status === 'synced' || s.status === 'ready') return 'ready';
     if (s.status === 'syncing' || s.status === 'pushing') return 'pushing';
+    if (s.status === 'checking') return 'checking';
     if (s.status === 'error') return 'error';
     /* idle / unconfigured → 待部署 */
     return 'pending-deploy';
@@ -904,6 +905,7 @@ window.TL = window.TL || {};
     var TEXT = {
       ready:         '代码·已就绪',
       pushing:        '代码·推送中',
+      checking:      '代码·检测中',
       error:         '代码·部署失败',
       'pending-deploy': '代码·待部署',
       offline:       '离线模式'

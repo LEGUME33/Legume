@@ -146,9 +146,33 @@ window.TL = window.TL || {};
     });
   }
 
+  /** 轻量探测：无 Token 时通过 HEAD 请求判断线上地址是否可达 */
+  function probeUrl(url) {
+    if (!url) return Promise.resolve(false);
+    return fetch(url, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+      .then(function () { return true; })
+      .catch(function () { return false; });
+  }
+
   function init() {
-    if (configured()) status().catch(function () {});
-    else set({ status: 'idle', message: '未连接 Vercel' });
+    if (configured()) {
+      status().then(function () {
+        /* Token 查询成功后，将探测到的 URL 持久化到 settings，供离线/无 Token 时复用 */
+        if (state.url && !cfg().vercelUrl) TL.Store.saveSettings({ vercelUrl: state.url });
+      }).catch(function () {});
+    } else {
+      /* 无 Token 时：若之前保存过 vercelUrl，尝试轻量探测；存活则显示"已部署(免Token)" */
+      var savedUrl = cfg().vercelUrl;
+      if (savedUrl) {
+        set({ status: 'checking', message: '探测线上地址…', url: savedUrl });
+        probeUrl(savedUrl).then(function (alive) {
+          if (alive) set({ status: 'ready', message: '已部署 · 线上可访问（免 Token 探测）', url: savedUrl });
+          else set({ status: 'unlinked', message: '未连接 Vercel（探测失败，请配置 Token 或检查网络）', url: '' });
+        });
+      } else {
+        set({ status: 'idle', message: '未连接 Vercel' });
+      }
+    }
   }
 
   TL.Vercel = {

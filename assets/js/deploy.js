@@ -125,10 +125,41 @@ window.TL = window.TL || {};
     });
   }
 
+  /** 轻量探测：通过 GitHub API 检查代码仓库是否有内容（无需 Token 也能读公开/自有仓库） */
+  function probeRepoContent() {
+    var t = codeTarget();
+    /* 用 GitHub API 检查仓库默认分支最近提交时间 */
+    return fetch('https://api.github.com/repos/' + t.owner + '/' + t.repo, {
+      headers: { 'Authorization': 'Bearer ' + t.token }
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.pushed_at) return null;
+        return new Date(j.pushed_at).getTime();
+      }).catch(function () { return null; });
+  }
+
   function init() {
     if (!configured()) { set({ status: 'unconfigured', message: '未部署' }); return; }
     if (!TL.Store.settings().codeRepo) { set({ status: 'idle', message: '仓库未初始化' }); return; }
-    set({ status: 'idle', message: '已连接 · 代码托管于 ' + codeTarget().repo });
+    /* 若之前已成功推送过代码（lastCodePushAt 存在），恢复为 synced（绿色"已就绪"），
+       避免每次刷新页面都回退到 idle（灰色"待部署"）让用户误以为需要重新操作 */
+    var lastPush = TL.Store.settings().lastCodePushAt;
+    if (lastPush && lastPush > 0) {
+      state.lastPushAt = lastPush;
+      set({ status: 'synced', message: '代码已推送 · ' + timeAgo(lastPush) });
+      return;
+    }
+    /* 无本地推送记录时，异步探测 GitHub 仓库是否已有内容（git push / 其他方式写入的） */
+    set({ status: 'checking', message: '检测代码仓库…' });
+    probeRepoContent().then(function (pushedAt) {
+      if (pushedAt && pushedAt > 0) {
+        state.lastPushAt = pushedAt;
+        TL.Store.saveSettings({ lastCodePushAt: pushedAt });
+        set({ status: 'synced', message: '代码已推送 · ' + timeAgo(pushedAt) + '（自动探测）' });
+      } else {
+        set({ status: 'idle', message: '已连接 · 代码托管于 ' + codeTarget().repo + ' · 待推送' });
+      }
+    });
   }
 
   TL.Deploy = {
