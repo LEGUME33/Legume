@@ -2051,3 +2051,23 @@ body.has-statusbar .tl-toasts {
 }
 .tl-sync-unconf__title { font-weight: 600; color: var(--c-text-body); margin-bottom: 4px; }
 .tl-sync-unconf__desc { font-size: 13px; color: var(--c-text-sub); line-height: 1.5; margin-bottom: 10px; }
+
+/* 云端登录网关（阻塞式，未登录禁止读写个人数据） */
+.tl-auth-gate__overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--c-bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  padding: var(--sp-4);
+}
+.tl-auth-gate {
+  width: min(420px, 100%);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border-strong);
+  border-radius: var(--r-lg);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-lg);
+}
+.tl-auth-gate__title { font-size: var(--fs-h3); font-weight: 700; color: var(--c-text-body); margin-bottom: 6px; }
+.tl-auth-gate__sub { font-size: 13px; color: var(--c-text-sub); margin-bottom: 16px; line-height: 1.5; }
+.tl-auth-gate__switch { margin-top: 14px; width: 100%; }

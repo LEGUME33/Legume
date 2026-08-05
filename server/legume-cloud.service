@@ -1,0 +1,17 @@
+[Unit]
+Description=Legume Cloud Sync Service (FastAPI + SQLite)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/legume-cloud
+ExecStart=/opt/legume-cloud/venv/bin/python -m uvicorn server.main:app --host 0.0.0.0 --port 8000 --workers 1
+Restart=always
+RestartSec=5
+User=www-data
+Environment=SECRET_KEY=__CHANGE_ME_TO_A_LONG_RANDOM_STRING__
+Environment=PORT=8000
+Environment=CORS_ORIGINS=*
+
+[Install]
+WantedBy=multi-user.target

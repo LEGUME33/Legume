@@ -1,0 +1,6 @@
+# 服务端本地产物（不入库）
+legume.db
+backups/
+__pycache__/
+*.pyc
+.env

@@ -32,10 +32,13 @@ doc.head.appendChild(link);
 
 /* 加载脚本（按依赖顺序） */
 var scripts = [
+  'assets/js/kv.js',       // TL.KV
   'assets/js/store.js',    // TL.Store
   'assets/js/github.js',   // TL.GitHub
+  'assets/js/auth.js',     // TL.Auth（云端登录）
   'assets/js/media.js',    // TL.Media
-  'assets/js/sync.js',     // TL.Sync
+  'assets/js/sync.js',     // TL.Sync（GitHub 引擎）
+  'assets/js/cloud.js',    // TL.Cloud（云端引擎）+ TL.getSync()
   'assets/js/deploy.js',   // TL.Deploy
   'assets/js/vercel.js',   // TL.Vercel
   'assets/js/ui.js'        // TL.UI (含 mountStatusbar)

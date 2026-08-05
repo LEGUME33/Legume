@@ -46,23 +46,42 @@ window.TL.pages = window.TL.pages || {};
       }
     });
 
-    /* ⑤ 启动同步引擎：自动拉取云端最新数据并与本地合并 */
-    TL.Sync.init();
+    /* ⑤ 启动同步引擎：按双模式开关选择 GitHub 引擎或云端数据库引擎 */
+    function startSyncLayer() {
+      TL.getSync().init();
+      if (TL.Deploy && TL.Deploy.init) TL.Deploy.init();
+      if (TL.Vercel && TL.Vercel.init) TL.Vercel.init();
+      if (TL.UI.mountStatusbar) TL.UI.mountStatusbar();
+    }
 
-    /* ⑤-b 启动部署层：初始化代码仓库状态 + Vercel 部署状态查询 */
-    if (TL.Deploy && TL.Deploy.init) TL.Deploy.init();
-    if (TL.Vercel && TL.Vercel.init) TL.Vercel.init();
-
-    /* ⑤-c 挂载全局底部状态栏（云端连接实时状态，依赖上述模块已初始化） */
-    if (TL.UI.mountStatusbar) TL.UI.mountStatusbar();
+    var mode = (TL.Store.settings() && TL.Store.settings().syncMode) || 'github';
+    if (mode === 'cloud') {
+      TL.Auth.restore();
+      if (!TL.Auth.configured()) {
+        // 未登录：优先弹出登录网关，阻塞交互直至登录或切回 GitHub 模式
+        TL.Auth.showGate(function () { startSyncLayer(); }, function () {
+          TL.Store.saveSettings({ syncMode: 'github' });
+          location.reload();
+        });
+      } else {
+        startSyncLayer();
+      }
+    } else {
+      startSyncLayer();
+    }
 
     /* ⑥ 快捷键：Ctrl/Cmd + S 立即同步 */
     document.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 's') {
         e.preventDefault();
-        if (!TL.GitHub.configured()) return TL.UI.toast('尚未配置云端同步', 'warn');
+        var m = (TL.Store.settings() && TL.Store.settings().syncMode) || 'github';
+        if (m === 'cloud') {
+          if (!TL.Auth.configured()) return TL.UI.toast('请先登录云端账户', 'warn');
+        } else if (!TL.GitHub.configured()) {
+          return TL.UI.toast('尚未配置云端同步', 'warn');
+        }
         TL.UI.toast('同步中…');
-        TL.Sync.syncNow()
+        TL.getSync().syncNow()
           .then(function () { TL.UI.toast('同步完成', 'success'); })
           .catch(function (err) { TL.UI.toast('同步失败：' + err.message, 'error', 4200); });
       }

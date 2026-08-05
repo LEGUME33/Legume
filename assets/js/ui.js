@@ -410,6 +410,41 @@ window.TL = window.TL || {};
       ]);
     }
 
+    /* 同步模式选择（GitHub 私有仓库 / 云端数据库 双模式兼容） */
+    box.appendChild(h('div', { class: 'tl-setting-group' }, [
+      h('div', { class: 'tl-setting-group__title', text: '同步模式' }),
+      (function () {
+        var cur = TL.Store.settings().syncMode || 'github';
+        var wrap = h('div', { class: 'tl-seg' }, [
+          h('button', { class: 'tl-seg__btn' + (cur === 'github' ? ' is-active' : ''), 'data-mode': 'github', text: 'GitHub 同步', onClick: function () { seg('github'); } }),
+          h('button', { class: 'tl-seg__btn' + (cur === 'cloud' ? ' is-active' : ''), 'data-mode': 'cloud', text: '云端数据库', onClick: function () { seg('cloud'); } })
+        ]);
+        function seg(m) {
+          TL.Store.saveSettings({ syncMode: m });
+          if (m === 'cloud' && !TL.Auth.configured()) {
+            TL.Auth.showGate(function () { location.reload(); }, function () { TL.Store.saveSettings({ syncMode: 'github' }); location.reload(); });
+            return;
+          }
+          toast('已切换同步模式，正在重新加载…', 'success');
+          location.reload();
+        }
+        return wrap;
+      })(),
+      h('div', { class: 'tl-field__tip', text: 'GitHub 模式数据存私有仓库，受国内网络影响可能不稳定；云端数据库模式由自建 FastAPI + SQLite 提供，跨设备同步更稳定（最终方案）。' })
+    ]));
+
+    /* 云端数据库配置 */
+    box.appendChild(h('div', { class: 'tl-setting-group' }, [
+      h('div', { class: 'tl-setting-group__title', text: '云端数据库（最终方案）' }),
+      field('服务地址', 'cloudUrl', c.cloudUrl, 'http://服务器IP:8000'),
+      h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
+        TL.Auth.configured()
+          ? h('button', { class: 'tl-btn tl-btn--ghost', text: '退出云端登录（' + TL.Auth.user() + '）', onClick: function () { TL.Auth.logout(); toast('已退出云端登录', 'success'); } })
+          : h('button', { class: 'tl-btn tl-btn--primary', text: '登录云端账户', onClick: function () { TL.Auth.showGate(function () { toast('登录成功', 'success'); location.reload(); }, function () { TL.Store.saveSettings({ syncMode: 'github' }); location.reload(); }); } })
+      ]),
+      h('div', { class: 'tl-field__tip', text: '云端数据库模式由自建后端提供，跨设备（电脑 / 手机）同步稳定，不受 GitHub 国内网络限制。' })
+    ]));
+
     /* ① GitHub 账号登录（免 PAT，系统自动授权） */
     box.appendChild(h('div', { class: 'tl-setting-group' }, [
       h('div', { class: 'tl-setting-group__title', text: 'GitHub 账号登录（免 PAT）' }),
@@ -506,15 +541,41 @@ window.TL = window.TL || {};
         patch[k] = k === 'delaySec' ? Math.max(5, parseInt(input.value, 10) || 30) : input.value.trim();
       });
       TL.Store.saveSettings(patch);
-      TL.Sync.refresh();
       toast('配置已保存', 'success');
-      if (TL.GitHub.configured()) {
+      var m = (TL.Store.settings().syncMode) || 'github';
+      if (m === 'cloud') {
+        if (!TL.Auth.configured()) {
+          toast('已保存 · 云端模式需登录后同步，请点「登录云端账户」', 'warn', 4200);
+          return;
+        }
+        toast('正在校验云端连接…');
+        TL.Cloud.probe().then(function () {
+          toast('✅ 云端连接正常', 'success');
+          beginManual('sync');
+          TL.Cloud.syncNow()
+            .then(function () { TL.refreshPage && TL.refreshPage(); })
+            .catch(function () {})
+            .then(endManual);
+        }).catch(function (e) { toast('云端连接失败：' + e.message, 'error', 5200); });
+        return;
+      }
+      TL.Sync.refresh();
+      if (!TL.GitHub.configured()) {
+        toast('本机尚未连接 GitHub · 多端同步未开启，请在每台设备填写相同 Token', 'warn', 4200);
+        return;
+      }
+      // 保存后立即发起一次云端连通校验，并拉取远端 JSON 合并本地内容（规范一.2）
+      toast('正在校验云端连接…');
+      TL.GitHub.verify().then(function (info) {
+        toast('✅ 云端连接正常' + (info.fullName ? (' · ' + info.fullName) : ''), 'success');
         beginManual('sync');
         TL.Sync.syncNow()
           .then(function () { TL.refreshPage && TL.refreshPage(); })
           .catch(function () { /* 失败提示由同步提示控制器统一处理 */ })
           .then(endManual);
-      }
+      }).catch(function (e) {
+        toast(classifyGitHubError(e), (/(网络无法访问|云端数据库方案)/.test(classifyGitHubError(e)) ? 'warn' : 'error'), 5600);
+      });
     }
 
     function needConfig() {
@@ -524,6 +585,15 @@ window.TL = window.TL || {};
     }
 
     function doVerify() {
+      var m = (TL.Store.settings().syncMode) || 'github';
+      if (m === 'cloud') {
+        if (!TL.Auth.configured()) return toast('请先登录云端账户', 'warn');
+        toast('正在校验…');
+        TL.Cloud.probe().then(function (info) {
+          modal({ title: '云端连接正常', content: h('div', {}, [ kv('账户', info.username), kv('服务', TL.Auth.cloudUrl() || '—') ]), actions: [{ label: '好的', type: 'primary', onClick: function (mm) { mm.close(); } }] });
+        }).catch(function (e) { toast('云端连接失败：' + e.message, 'error', 5200); });
+        return;
+      }
       if (needConfig()) return;
       toast('正在校验…');
       TL.GitHub.verify().then(function (info) {
@@ -538,23 +608,31 @@ window.TL = window.TL || {};
           ]),
           actions: [{ label: '好的', type: 'primary', onClick: function (mm) { mm.close(); } }]
         });
-      }).catch(function (e) { toast('校验失败：' + e.message, 'error', 4600); });
+      }).catch(function (e) {
+        var msg = classifyGitHubError(e);
+        // 网络不可达归类为「不稳定提示」（warn），鉴权/配置错误归类为「失败」（error）
+        toast(msg, (/(网络无法访问|云端数据库方案)/.test(msg) ? 'warn' : 'error'), 5600);
+      });
     }
 
     function doSyncNow() {
-      if (needConfig()) return;
+      var m = (TL.Store.settings().syncMode) || 'github';
+      if (m === 'cloud') { if (!TL.Auth.configured()) return toast('请先登录云端账户', 'warn'); }
+      else if (!TL.GitHub.configured()) return toast('请先填写用户名 / 仓库 / 令牌', 'warn');
       if (TL.Store.flushLocal) TL.Store.flushLocal();   // 先确保本地最新改动已落盘
       beginManual('sync');
-      TL.Sync.syncNow()
+      TL.getSync().syncNow()
         .then(function () { TL.refreshPage && TL.refreshPage(); })
         .catch(function () { /* 失败提示由同步提示控制器统一处理 */ })
         .then(endManual);
     }
 
     function doPull() {
-      if (needConfig()) return;
+      var m = (TL.Store.settings().syncMode) || 'github';
+      if (m === 'cloud') { if (!TL.Auth.configured()) return toast('请先登录云端账户', 'warn'); }
+      else if (!TL.GitHub.configured()) return toast('请先填写用户名 / 仓库 / 令牌', 'warn');
       beginManual('pull');
-      TL.Sync.pull()
+      TL.getSync().pull()
         .then(function () { TL.refreshPage && TL.refreshPage(); })
         .catch(function () { /* 失败提示由同步提示控制器统一处理 */ })
         .then(endManual);
@@ -1072,6 +1150,21 @@ window.TL = window.TL || {};
     document.body.appendChild(banner);
   }
 
+  /** 将 GitHub 请求错误分类为可读诊断提示（规范一.3） */
+  function classifyGitHubError(e) {
+    var msg = (e && e.message) || String(e || '');
+    var status = e && e.status;
+    // 网络不可达 / 超时（弱网、国内网络抖动、被墙）
+    if ((e && e.name === 'AbortError') || /超时|Failed to fetch|network|NetworkError|load failed|timeout|ECONN|ENOTFOUND/i.test(msg)) {
+      return '网络无法访问 GitHub 服务，多端同步会不稳定，可后续切换云端数据库方案';
+    }
+    // 鉴权失败：Token 失效 / 权限不足 / 仓库信息错误
+    if (status === 401 || status === 403 || /Bad credentials|权限|repo 权限|仓库不存在|Not Found|Repository access|401|403/i.test(msg)) {
+      return 'GitHub 鉴权失败：Token 权限不足或仓库信息错误，请检查 PAT 的 repo 权限与用户名 / 仓库名';
+    }
+    return '同步失败：' + msg;
+  }
+
   function mountStatusbar() {
     // 防止重复挂载
     if ($('#tl-statusbar')) return;
@@ -1082,7 +1175,9 @@ window.TL = window.TL || {};
     var bar = h('div', { id: 'tl-statusbar', class: 'tl-statusbar' }, [
       /* ① 云端同步（GitHub） */
       h('button', { class: 'tl-statusbar__pill', id: 'sb-sync', type: 'button', onClick: function () {
-        var s = TL.Sync.state();
+        var mode = (TL.Store.settings().syncMode) || 'github';
+        var engine = (mode === 'cloud') ? TL.Cloud : TL.Sync;
+        var s = engine.state();
         var c = TL.Store.settings();
         var lastSync = Math.max(s.lastPushAt || 0, s.lastPullAt || 0);
         var verRows = TL.Store.CATS.map(function (cat) {
@@ -1094,25 +1189,54 @@ window.TL = window.TL || {};
           var head = t.slice(0, 4), tail = t.length > 4 ? t.slice(-4) : '';
           return (head + '****' + tail) + '（长度 ' + t.length + '）';
         }
-        var diag = TL.GitHub.configured()
-          ? (s.connectInfo
-              ? ('仓库 ' + s.connectInfo.fullName + ' · 写入权限 ' + (s.connectInfo.canPush ? '有' : '无') + ' · 分支 ' + (s.connectInfo.defaultBranch || c.branch || 'main'))
-              : (s.lastError ? ('校验失败：' + s.lastError) : '尚未校验，正在连接…'))
-          : '未配置（请到「设置 → GitHub 私有仓库连接」填写令牌）';
-        var rows = [
-          kv('同步结果', syncText(s)),
-          kv('最近同步', lastSync ? fmtTime(lastSync) : '—'),
-          kv('最近推送', s.lastPushAt ? fmtTime(s.lastPushAt) : '—'),
-          kv('最近拉取', s.lastPullAt ? fmtTime(s.lastPullAt) : '—'),
-          kv('失败原因', s.lastError || '无'),
-          h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '连通诊断（Token / 仓库 / 权限）：' }),
-          kv('仓库地址', TL.GitHub.configured() ? (c.owner + '/' + c.repo) : '未配置'),
-          kv('目标分支', c.branch || 'main'),
-          kv('Token 配置', maskToken(c.token)),
-          kv('连通诊断', diag),
-          h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '各数据文件版本（最近修改时间）：' }),
-          h('div', { class: 'tl-kv-grid', style: 'margin-top:4px' }, verRows),
-          h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
+        var rows = [ kv('同步模式', mode === 'cloud' ? '云端数据库' : 'GitHub 私有仓库') ];
+        if (mode === 'cloud') {
+          rows.push(kv('同步结果', syncText(s)));
+          rows.push(kv('服务地址', TL.Auth.cloudUrl() || '未配置'));
+          rows.push(kv('登录账户', TL.Auth.configured() ? TL.Auth.user() : '未登录'));
+          rows.push(kv('最近同步', lastSync ? fmtTime(lastSync) : '—'));
+          rows.push(kv('最近推送', s.lastPushAt ? fmtTime(s.lastPushAt) : '—'));
+          rows.push(kv('最近拉取', s.lastPullAt ? fmtTime(s.lastPullAt) : '—'));
+          rows.push(kv('失败原因', s.lastError || '无'));
+          rows.push(h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '各数据文件版本（最近修改时间）：' }));
+          rows.push(h('div', { class: 'tl-kv-grid', style: 'margin-top:4px' }, verRows));
+          rows.push(h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
+            h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '立即手动同步', onClick: function () {
+              if (TL.Auth.configured()) { beginManual('sync'); TL.Cloud.syncNow().catch(function () {}).then(endManual); }
+            }}),
+            h('button', { class: 'tl-btn tl-btn--secondary tl-btn--sm', text: '重新校验连接', onClick: function () {
+              if (!TL.Auth.configured()) { toast('请先登录云端账户', 'warn'); return; }
+              toast('正在校验连接…');
+              TL.Cloud.probe().then(function (info) { toast(info ? ('连接正常 · ' + info.username) : '连接正常', 'success', 4200); })
+                .catch(function (e) { toast('云端连接失败：' + e.message, 'error', 4200); });
+            }})
+          ]));
+          if (!TL.Auth.configured()) {
+            rows.unshift(h('div', { class: 'tl-sync-unconf' }, [
+              h('div', { class: 'tl-sync-unconf__title', text: '本机尚未登录云端账户 · 多端同步未开启' }),
+              h('div', { class: 'tl-sync-unconf__desc', text: '在「设置 → 同步模式」选择云端数据库并登录，即可跨电脑 / 手机稳定互通。' }),
+              h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '去登录', onClick: function () { TL.Auth.showGate(function () { location.reload(); }, function () { TL.Store.saveSettings({ syncMode: 'github' }); location.reload(); }); } })
+            ]));
+          }
+        } else {
+          var diag = TL.GitHub.configured()
+            ? (s.connectInfo
+                ? ('仓库 ' + s.connectInfo.fullName + ' · 写入权限 ' + (s.connectInfo.canPush ? '有' : '无') + ' · 分支 ' + (s.connectInfo.defaultBranch || c.branch || 'main'))
+                : (s.lastError ? ('校验失败：' + s.lastError) : '尚未校验，正在连接…'))
+            : '未配置（请到「设置 → GitHub 私有仓库连接」填写令牌）';
+          rows.push(kv('同步结果', syncText(s)));
+          rows.push(kv('最近同步', lastSync ? fmtTime(lastSync) : '—'));
+          rows.push(kv('最近推送', s.lastPushAt ? fmtTime(s.lastPushAt) : '—'));
+          rows.push(kv('最近拉取', s.lastPullAt ? fmtTime(s.lastPullAt) : '—'));
+          rows.push(kv('失败原因', s.lastError || '无'));
+          rows.push(h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '连通诊断（Token / 仓库 / 权限）：' }));
+          rows.push(kv('仓库地址', TL.GitHub.configured() ? (c.owner + '/' + c.repo) : '未配置'));
+          rows.push(kv('目标分支', c.branch || 'main'));
+          rows.push(kv('Token 配置', maskToken(c.token)));
+          rows.push(kv('连通诊断', diag));
+          rows.push(h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '各数据文件版本（最近修改时间）：' }));
+          rows.push(h('div', { class: 'tl-kv-grid', style: 'margin-top:4px' }, verRows));
+          rows.push(h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
             h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '立即手动同步', onClick: function () {
               if (TL.GitHub.configured()) { beginManual('sync'); TL.Sync.syncNow().catch(function () {}).then(endManual); }
             }}),
@@ -1124,15 +1248,14 @@ window.TL = window.TL || {};
                 toast(st.connectInfo ? ('连接正常 · ' + st.connectInfo.fullName) : ('校验失败：' + (st.lastError || '未知错误')), st.connectInfo ? 'success' : 'error', 4200);
               });
             }})
-          ])
-        ];
-        // 未连接 GitHub：在浮窗顶部给出醒目引导 + 一键直达配置，避免用户误以为已同步
-        if (!TL.GitHub.configured()) {
-          rows.unshift(h('div', { class: 'tl-sync-unconf' }, [
-            h('div', { class: 'tl-sync-unconf__title', text: '本机尚未连接 GitHub · 多端同步未开启' }),
-            h('div', { class: 'tl-sync-unconf__desc', text: '在每台设备的「设置 → GitHub 私有仓库连接」填写相同 Token，即可跨电脑 / 手机互通数据。' }),
-            h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '去配置 GitHub', onClick: function () { openSettings(); } })
           ]));
+          if (!TL.GitHub.configured()) {
+            rows.unshift(h('div', { class: 'tl-sync-unconf' }, [
+              h('div', { class: 'tl-sync-unconf__title', text: '本机尚未连接 GitHub · 多端同步未开启' }),
+              h('div', { class: 'tl-sync-unconf__desc', text: '在每台设备的「设置 → GitHub 私有仓库连接」填写相同 Token，即可跨电脑 / 手机互通数据。' }),
+              h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '去配置 GitHub', onClick: function () { openSettings(); } })
+            ]));
+          }
         }
         modal({ title: '云端同步详情', content: h('div', {}, rows), actions: [{ label: '关闭', type: 'ghost', onClick: function (m) { m.close(); } }] });
       }}, [
@@ -1205,8 +1328,8 @@ window.TL = window.TL || {};
       applyTheme();
     }
 
-    // ---- 订阅各模块状态变化 ----
-    TL.Sync.on(refreshAll);
+    // ---- 订阅各模块状态变化（按双模式开关路由到当前引擎） ----
+    TL.getSync().on(refreshAll);
     TL.Deploy.on(refreshAll);
     TL.Vercel.on(refreshAll);
 
@@ -1219,7 +1342,7 @@ window.TL = window.TL || {};
 
     // ---- 每 60 秒主动轮询刷新（确保状态不过期） ----
     var pollTimer = setInterval(function () {
-      TL.Sync.refresh();
+      TL.getSync().refresh();
       // Vercel 也定期刷新一次
       if (TL.Vercel.configured()) TL.Vercel.status().catch(function () {});
     }, 60000);

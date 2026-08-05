@@ -59,7 +59,11 @@ window.TL = window.TL || {};
     clientId: 'Ov23liUHIt4aahx4qSx0', // GitHub OAuth App 的 Client ID（仅需注册一次，无需密钥）
     codeRepo: 'legume',    // 前端代码仓库（私有）：静态站点源码托管，Vercel 部署源
     vercelToken: '',       // Vercel 访问令牌（在 Vercel 后台一次性生成，用于站内查询部署状态）
-    lastCodePushAt: 0
+    lastCodePushAt: 0,
+    /* —— 新增：双模式同步开关 —— */
+    syncMode: 'github',     // github（GitHub 私有仓库）| cloud（云端数据库 FastAPI 后端）
+    cloudUrl: '',           // 云端数据库服务地址，例如 http://1.2.3.4:8000
+    cloudCooldownSec: 30    // 云端模式推送节流秒数（合并短时间多次修改）
   };
 
   var cache = {};       // 内存副本
