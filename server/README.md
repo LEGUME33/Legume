@@ -86,10 +86,11 @@ curl http://localhost:8000/api/health
 | POST | `/api/auth/register` | 注册并返回 JWT | 否 |
 | POST | `/api/auth/login` | 登录返回 JWT | 否 |
 | GET  | `/api/auth/me` | 当前用户 | 是 |
+| POST | `/api/auth/refresh` | 活跃设备续期（换新令牌，实现永久登录） | 是 |
 | GET  | `/api/data` | 拉取全部业务数据 | 是 |
 | POST | `/api/data` | 批量提交变更（时间戳合并） | 是 |
 
-JWT 通过 `Authorization: Bearer <token>` 头传递；默认有效期 30 天（可在 `.env` 调整）。
+JWT 通过 `Authorization: Bearer <token>` 头传递；默认有效期 **365 天**，且前端会在启动 / 切回前台 / 恢复网络时自动调用 `/api/auth/refresh` 续期，常用设备登录后近乎**永久**，不会因过期被踢回登录页（可在 `.env` 的 `TOKEN_EXPIRE_HOURS` 调整）。
 
 ---
 

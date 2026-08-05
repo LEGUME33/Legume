@@ -35,8 +35,9 @@ DATABASE_URL = f"sqlite:///{DB_PATH}"
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
-# JWT 有效期（小时），默认 30 天
-TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "720"))
+# JWT 有效期（小时），默认 365 天。配合前端「活跃即续期」（启动 / 切前台 / 恢复网络时
+# 自动调用 /api/auth/refresh），常用设备登录后近乎永久，不会因过期被踢回登录页。
+TOKEN_EXPIRE_HOURS = int(os.getenv("TOKEN_EXPIRE_HOURS", "8760"))
 
 # 允许的前端跨域来源（逗号分隔）；* 表示全部放开（仅建议开发/内网使用）
 _CORS = os.getenv("CORS_ORIGINS", "*")

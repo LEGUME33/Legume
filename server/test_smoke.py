@@ -125,5 +125,11 @@ from server import config as _cfg
 backups = os.listdir(_cfg.BACKUP_DIR)
 check("已生成备份文件", any("legume-" in f for f in backups))
 
+# 10. 活跃设备续期（永久登录）
+s, j = req("POST", "/api/auth/refresh", token=tok)
+check("续期 200", s == 200 and bool(j.get("access_token")))
+s, _ = req("POST", "/api/auth/refresh")
+check("无令牌续期 401", s == 401)
+
 print("\n结果：%d 通过 / %d 失败" % (passed, failed))
 sys.exit(1 if failed else 0)

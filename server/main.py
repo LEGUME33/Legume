@@ -73,6 +73,12 @@ def me(user: User = Depends(get_current_user)):
     return {"username": user.username, "id": user.id}
 
 
+@app.post("/api/auth/refresh", response_model=TokenResponse)
+def refresh(user: User = Depends(get_current_user)):
+    """活跃设备续期：持有效（未过期）令牌换取新令牌，实现登录永久保持。"""
+    return TokenResponse(access_token=create_token(user.username), username=user.username)
+
+
 # ---------------- 数据同步 ----------------
 @app.get("/api/data", response_model=DataResponse)
 def get_data(user: User = Depends(get_current_user), db: Session = Depends(get_db)):

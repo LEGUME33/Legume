@@ -8,6 +8,7 @@
   var USER_KEY = NS + '.auth.user';
   var _token = '';
   var _user = '';
+  var _onUnauth = null; // 令牌失效（401）时回调，由 app.js 注册为弹登录网关
 
   function cloudUrl() {
     var s = (TL.Store && TL.Store.settings) ? TL.Store.settings() : {};
@@ -60,12 +61,21 @@
       signal: ctrl ? ctrl.signal : undefined
     });
     var timer = (ctrl && opts.timeout) ? setTimeout(function () { ctrl.abort(); }, opts.timeout || 15000) : null;
+    function onUnauth() {
+      if (res.status === 401) {
+        clear();
+        try { if (_onUnauth) _onUnauth(); } catch (e) {}
+      }
+    }
     return p.then(function (res) {
       if (timer) clearTimeout(timer);
       return res.json().then(function (j) {
-        if (!res.ok) throw new Error(j.detail || ('请求失败 ' + res.status));
+        if (!res.ok) { onUnauth(); throw new Error(j.detail || ('请求失败 ' + res.status)); }
         return j;
-      }, function () { if (!res.ok) throw new Error('请求失败 ' + res.status); return {}; });
+      }, function () {
+        if (!res.ok) { onUnauth(); throw new Error('请求失败 ' + res.status); }
+        return {};
+      });
     }).catch(function (err) {
       if (timer) clearTimeout(timer);
       throw err;
@@ -81,6 +91,15 @@
     return request('/api/auth/login', { method: 'POST', body: { username: username, password: password } })
       .then(function (r) { save(r.access_token, r.username); return r; });
   }
+
+  /* 活跃设备续期：用当前有效令牌换取新令牌，配合后端 1 年有效期实现永久登录 */
+  function refresh() {
+    if (!_token) return Promise.reject(new Error('未登录'));
+    return request('/api/auth/refresh', { method: 'POST' })
+      .then(function (r) { save(r.access_token, r.username); return r; });
+  }
+
+  function setUnauthHandler(fn) { _onUnauth = fn; }
 
   /* 登录网关：云模式未登录时优先弹出，阻塞页面交互直至登录 / 切换 GitHub 模式 */
   function showGate(onSuccess, onSwitchGithub) {
@@ -142,6 +161,8 @@
     request: request,
     register: register,
     login: login,
+    refresh: refresh,
+    setUnauthHandler: setUnauthHandler,
     logout: clear,
     showGate: showGate
   };

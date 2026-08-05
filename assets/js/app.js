@@ -57,6 +57,13 @@ window.TL.pages = window.TL.pages || {};
     var mode = (TL.Store.settings() && TL.Store.settings().syncMode) || 'github';
     if (mode === 'cloud') {
       TL.Auth.restore();
+      // 令牌失效（401）时自动弹登录网关，避免静默卡死
+      TL.Auth.setUnauthHandler(function () {
+        TL.Auth.showGate(function () { startSyncLayer(); }, function () {
+          TL.Store.saveSettings({ syncMode: 'github' });
+          location.reload();
+        });
+      });
       if (!TL.Auth.configured()) {
         // 未登录：优先弹出登录网关，阻塞交互直至登录或切回 GitHub 模式
         TL.Auth.showGate(function () { startSyncLayer(); }, function () {
@@ -65,6 +72,11 @@ window.TL.pages = window.TL.pages || {};
         });
       } else {
         startSyncLayer();
+        // 永久登录：启动即静默续期；切回前台 / 恢复网络时再续期，常用设备几乎永不过期
+        TL.Auth.refresh().catch(function () {});
+        var _renew = function () { TL.Auth.refresh().catch(function () {}); };
+        window.addEventListener('online', _renew);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) _renew(); });
       }
     } else {
       startSyncLayer();
