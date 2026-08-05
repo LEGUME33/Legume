@@ -945,7 +945,7 @@ window.TL = window.TL || {};
       pending:      '存在本地未同步变更',
       error:        '同步失败，请检查网络/Token',
       offline:      '离线模式',
-      disconnected: '未连接云端·仅本地'
+      disconnected: '未连接云端 · 点此配置'
     };
     return TEXT[sb] || TEXT.disconnected;
   }
@@ -1059,6 +1059,19 @@ window.TL = window.TL || {};
     modal({ title: title, content: h('div', {}, rows), actions: [{ label: '关闭', type: 'ghost', onClick: function (m) { m.close(); } }] });
   }
 
+  /** 未连接 GitHub 时展示的可关闭引导条：明确告知需在每台设备配置相同 Token 才能互通
+      直接针对「状态栏一直未连接 · 另一台电脑数据拉不到」这一典型困惑，避免用户误以为已同步 */
+  function mountSyncSetupHint() {
+    if ($('#tl-sync-setup')) return;
+    var banner = h('div', { id: 'tl-sync-setup', class: 'tl-sync-banner' }, [
+      h('span', { class: 'tl-sync-banner__icon', text: '🔗' }),
+      h('span', { class: 'tl-sync-banner__txt', text: '多端同步未开启：本机尚未连接 GitHub。在每台设备的「设置 → GitHub 私有仓库连接」填写相同 Token，即可跨电脑 / 手机互通数据。' }),
+      h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '去配置', onClick: function () { banner.remove(); openSettings(); } }),
+      h('button', { class: 'tl-sync-banner__close', text: '×', title: '知道了', onClick: function () { banner.remove(); } })
+    ]);
+    document.body.appendChild(banner);
+  }
+
   function mountStatusbar() {
     // 防止重复挂载
     if ($('#tl-statusbar')) return;
@@ -1113,6 +1126,14 @@ window.TL = window.TL || {};
             }})
           ])
         ];
+        // 未连接 GitHub：在浮窗顶部给出醒目引导 + 一键直达配置，避免用户误以为已同步
+        if (!TL.GitHub.configured()) {
+          rows.unshift(h('div', { class: 'tl-sync-unconf' }, [
+            h('div', { class: 'tl-sync-unconf__title', text: '本机尚未连接 GitHub · 多端同步未开启' }),
+            h('div', { class: 'tl-sync-unconf__desc', text: '在每台设备的「设置 → GitHub 私有仓库连接」填写相同 Token，即可跨电脑 / 手机互通数据。' }),
+            h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '去配置 GitHub', onClick: function () { openSettings(); } })
+          ]));
+        }
         modal({ title: '云端同步详情', content: h('div', {}, rows), actions: [{ label: '关闭', type: 'ghost', onClick: function (m) { m.close(); } }] });
       }}, [
         h('i', { class: 'tl-statusbar__dot' }),
@@ -1205,6 +1226,9 @@ window.TL = window.TL || {};
 
     // ---- 首次渲染 ----
     refreshAll();
+
+    // 未连接 GitHub 时展示可关闭的多端同步配置引导条（避免用户误以为已同步）
+    if (!TL.GitHub.configured()) mountSyncSetupHint();
 
     // 页面卸载时清理定时器
     window.addEventListener('beforeunload', function () { clearInterval(pollTimer); });

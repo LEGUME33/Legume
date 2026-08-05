@@ -2003,3 +2003,51 @@ body.has-statusbar .tl-toasts {
   .tl-nav__link { padding: var(--sp-1) var(--sp-2); font-size: var(--fs-cap); }
   .tl-main { padding: var(--sp-3) var(--sp-2) var(--sp-6); }
 }
+
+/* =====================================================================
+   多端同步未开启 · 配置引导条（仅本机未连接 GitHub 时展示，可关闭）
+   定位在底部状态栏上方，避免遮挡页面头部；点击「去配置」直达设置
+   ===================================================================== */
+.tl-sync-banner {
+  position: fixed;
+  left: 0; right: 0; bottom: 64px;
+  z-index: 70;
+  display: flex; align-items: center; gap: var(--sp-3);
+  margin: 0 auto; max-width: 980px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--c-tip-warning) 18%, var(--c-surface));
+  border: 1px solid color-mix(in srgb, var(--c-tip-warning) 50%, transparent);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  color: var(--c-text-body);
+  font-size: 13px; line-height: 1.5;
+  pointer-events: auto;
+}
+.tl-sync-banner__icon { font-size: 16px; flex: none; }
+.tl-sync-banner__txt { flex: 1; min-width: 0; }
+.tl-sync-banner__close {
+  flex: none; border: none; background: transparent;
+  color: var(--c-text-sub); font-size: 20px; line-height: 1;
+  cursor: pointer; padding: 0 4px;
+}
+.tl-sync-banner__close:hover { color: var(--c-text-body); }
+
+@media (max-width: 640px) {
+  .tl-sync-banner {
+    left: var(--sp-3); right: var(--sp-3); bottom: 56px;
+    flex-wrap: wrap; max-width: none;
+  }
+  .tl-sync-banner__txt { flex-basis: 100%; order: 3; }
+  .tl-sync-banner .tl-btn { flex: 1; }
+}
+
+/* 同步详情浮窗 · 未连接 GitHub 时的醒目引导块 */
+.tl-sync-unconf {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: color-mix(in srgb, var(--c-tip-warning) 16%, var(--c-surface));
+  border: 1px solid color-mix(in srgb, var(--c-tip-warning) 50%, transparent);
+  border-radius: 12px;
+}
+.tl-sync-unconf__title { font-weight: 600; color: var(--c-text-body); margin-bottom: 4px; }
+.tl-sync-unconf__desc { font-size: 13px; color: var(--c-text-sub); line-height: 1.5; margin-bottom: 10px; }
