@@ -693,8 +693,9 @@ small { font-size: var(--fs-cap); }
   .tl-topic-row { flex-wrap: wrap; gap: var(--sp-2); }
   .tl-topic-row__name { width: auto; }
   .tl-modal { padding: var(--sp-3); }
-  .tl-toasts { left: var(--sp-4); right: var(--sp-4); }
-  .tl-toast { max-width: none; }
+  /* 移动端 Toast 底部居中，宽度自适应，不遮挡输入框/日历/按钮（容器 pointer-events:none） */
+  .tl-toasts { left: 50%; right: auto; transform: translateX(-50%); align-items: center; }
+  .tl-toast { max-width: min(92vw, 420px); }
 }
 
 /* ============================== 部署 / 登录辅助组件 ============================== */
@@ -1877,6 +1878,17 @@ small { font-size: var(--fs-cap); }
   animation: tl-flash 1.4s var(--ease);
 }
 .tl-statusbar__pill[data-sb="updated"] .tl-statusbar__dot {
+  background: var(--c-tip-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-tip-success) 22%, transparent);
+}
+
+/* ---- 状态色：同步上传成功（绿色，与「云端数据已更新」同色系） ---- */
+.tl-statusbar__pill[data-sb="pushed"] {
+  color: var(--c-tip-success);
+  background: var(--c-tip-success-soft);
+  border-color: transparent;
+}
+.tl-statusbar__pill[data-sb="pushed"] .tl-statusbar__dot {
   background: var(--c-tip-success);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-tip-success) 22%, transparent);
 }

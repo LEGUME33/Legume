@@ -44,7 +44,7 @@ window.TL = window.TL || {};
 
   function phaseOf(status) {
     if (status === 'syncing' || status === 'pulling' || status === 'pushing') return 'syncing';
-    if (status === 'synced' || status === 'updated') return 'success';
+    if (status === 'synced' || status === 'updated' || status === 'pushed') return 'success';
     if (status === 'error') return 'failed';
     return 'idle';
   }
@@ -142,7 +142,7 @@ window.TL = window.TL || {};
       return Promise.resolve({ skipped: true });
     }
 
-    setStatus('pulling', '正在拉取云端数据…');
+    setStatus('pulling', '正在拉取云端最新数据');
     var meta = TL.Store.meta();
     var applied = [], merged = [], keptLocal = [];
 
@@ -192,7 +192,7 @@ window.TL = window.TL || {};
       // 版本差异（云端覆盖/合并）时高亮提醒「云端数据已更新」
       var changed = (applied.length || merged.length);
       if (changed) {
-        setStatus('updated', '云端数据已更新 · ' + timeAgo(state.lastPullAt));
+        setStatus('updated', '云端数据已更新');
         setTimeout(function () { if (state.status === 'updated') refreshIdleStatus(); }, 2500);
       } else if (hasDirty()) {
         schedule();
@@ -204,7 +204,7 @@ window.TL = window.TL || {};
       return { applied: applied, merged: merged, keptLocal: keptLocal };
     }).catch(function (err) {
       state.lastError = err.message || String(err);
-      setStatus('error', '同步失败 · ' + state.lastError);
+      setStatus('error', '同步失败，请检查网络/Token');
       throw err;
     });
   }
@@ -225,7 +225,7 @@ window.TL = window.TL || {};
     if (!cats.length) { refreshIdleStatus(); return Promise.resolve({ nothing: true }); }
 
     busy = true;
-    setStatus('syncing', '正在推送 ' + cats.length + ' 个数据文件…');
+    setStatus('pushing', '正在推送数据至GitHub');
     var meta = TL.Store.meta();
     var device = TL.Store.settings().device;
 
@@ -271,13 +271,15 @@ window.TL = window.TL || {};
       state.lastError = '';
       // 顺带把仅本地、尚未上传的图片二进制持续推送到 /data/image 目录
       if (TL.Media && TL.Media.uploadPending) TL.Media.uploadPending().catch(function () {});
-      refreshIdleStatus();
+      // 推送成功 → 瞬时「同步上传成功」绿色态，2.5s 后回落到空闲已连接（底部状态栏 + Toast 提示由 UI 层处理）
+      setStatus('pushed', '同步上传成功');
+      setTimeout(function () { if (state.status === 'pushed') refreshIdleStatus(); }, 2500);
       return { pushed: cats };
     }).catch(function (err) {
       busy = false;
       TL.Store.saveMeta(meta);
       state.lastError = err.message || String(err);
-      setStatus('error', '同步失败 · ' + state.lastError);
+      setStatus('error', '同步失败，请检查网络/Token');
       throw err;
     });
   }
@@ -311,7 +313,7 @@ window.TL = window.TL || {};
       return push();
     }).catch(function (err) {
       state.lastError = err.message || String(err);
-      setStatus('error', '同步失败 · ' + state.lastError);
+      setStatus('error', '同步失败，请检查网络/Token');
       throw err;
     });
   }

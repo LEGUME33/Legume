@@ -85,22 +85,48 @@ window.TL = window.TL || {};
     toast('主题：' + THEME_LABEL[next]);
   }
 
-  /* ------------------------------ Toast ------------------------------ */
-  function toast(msg, type, ms) {
+  /* ------------------------------ Toast（带队列，避免连续同步事件瞬间堆叠） ------------------------------ */
+  var toastQueue = [];
+  var toastActive = 0;
+  var TOAST_MAX = 3;                 // 同时最多展示条数，其余排队依次显示
+  var prevSyncStatus = null;         // 同步状态机上一帧，用于检测状态过渡
+  var manualSync = { active: false, kind: null };  // 用户主动触发的同步（拉取 / 立即同步）
+
+  function ensureToastRoot() {
     var root = $('#tl-toast-root');
     if (!root) { root = h('div', { id: 'tl-toast-root', class: 'tl-toasts' }); document.body.appendChild(root); }
-    var node = h('div', { class: 'tl-toast tl-toast--' + (type || 'info') }, [
+    return root;
+  }
+
+  function toast(msg, type, ms) {
+    toastQueue.push({ msg: msg, type: type || 'info', ms: ms || 2500 });
+    drainToasts();
+  }
+
+  function drainToasts() {
+    var root = ensureToastRoot();
+    while (toastActive < TOAST_MAX && toastQueue.length) {
+      showOneToast(root, toastQueue.shift());
+    }
+  }
+
+  function showOneToast(root, item) {
+    toastActive++;
+    var node = h('div', { class: 'tl-toast tl-toast--' + item.type }, [
       h('i', { class: 'tl-toast__dot' }),
-      h('span', { text: msg })
+      h('span', { text: item.msg })
     ]);
     root.appendChild(node);
     setTimeout(function () {
       node.style.transition = 'opacity .25s, transform .25s';
       node.style.opacity = '0';
-      node.style.transform = 'translateX(16px)';
-      setTimeout(function () { node.remove(); }, 260);
-    }, ms || 2600);
+      node.style.transform = 'translateY(8px)';
+      setTimeout(function () { node.remove(); toastActive--; drainToasts(); }, 260);
+    }, item.ms);
   }
+
+  function beginManual(kind) { manualSync.active = true; manualSync.kind = kind; }
+  function endManual() { manualSync.active = false; manualSync.kind = null; }
 
   /* ------------------------------ 弹窗 ------------------------------ */
   function modal(opts) {
@@ -483,9 +509,11 @@ window.TL = window.TL || {};
       TL.Sync.refresh();
       toast('配置已保存', 'success');
       if (TL.GitHub.configured()) {
+        beginManual('sync');
         TL.Sync.syncNow()
-          .then(function () { toast('云端同步完成', 'success'); TL.refreshPage && TL.refreshPage(); })
-          .catch(function (e) { toast('同步失败：' + e.message, 'error', 4200); });
+          .then(function () { TL.refreshPage && TL.refreshPage(); })
+          .catch(function () { /* 失败提示由同步提示控制器统一处理 */ })
+          .then(endManual);
       }
     }
 
@@ -516,21 +544,20 @@ window.TL = window.TL || {};
     function doSyncNow() {
       if (needConfig()) return;
       if (TL.Store.flushLocal) TL.Store.flushLocal();   // 先确保本地最新改动已落盘
-      toast('开始同步…');
-      TL.Sync.syncNow().then(function () {
-        toast('同步完成', 'success');
-        TL.refreshPage && TL.refreshPage();
-      }).catch(function (e) { toast('同步失败：' + e.message, 'error', 4600); });
+      beginManual('sync');
+      TL.Sync.syncNow()
+        .then(function () { TL.refreshPage && TL.refreshPage(); })
+        .catch(function () { /* 失败提示由同步提示控制器统一处理 */ })
+        .then(endManual);
     }
 
     function doPull() {
       if (needConfig()) return;
-      toast('正在拉取云端最新数据…');
-      TL.Sync.pull().then(function (r) {
-        var n = (r && ((r.applied ? r.applied.length : 0) + (r.merged ? r.merged.length : 0))) || 0;
-        toast(n ? ('云端数据已更新，本地 ' + n + ' 类已同步') : '本地已是最新', 'success');
-        TL.refreshPage && TL.refreshPage();
-      }).catch(function (e) { toast('拉取失败：' + e.message, 'error', 4600); });
+      beginManual('pull');
+      TL.Sync.pull()
+        .then(function () { TL.refreshPage && TL.refreshPage(); })
+        .catch(function () { /* 失败提示由同步提示控制器统一处理 */ })
+        .then(endManual);
     }
 
     function doPagesInfo() {
@@ -886,34 +913,79 @@ window.TL = window.TL || {};
 
   /* ------------------------------ 全局底部状态栏（云端连接实时状态） ------------------------------ */
 
-  /** 将 TL.Sync / TL.Deploy / TL.Vercel 内部状态映射为底部状态栏的 sb 属性值 */
+  /** 将 TL.Sync 内部状态映射为底部状态栏的 data-sb 属性值（驱动圆点配色） */
   function mapSyncState(s) {
     if (!navigator.onLine) return 'offline';
-    var status = s.status;
-    if (status === 'pulling') return 'pulling';                       /* 正在拉取云端数据 */
-    if (status === 'updated') return 'updated';                       /* 云端数据已更新（高亮） */
-    if (status === 'pending') return 'pending';                       /* 存在本地未同步变更 */
-    if (status === 'syncing' || status === 'pushing' || status === 'checking') return 'syncing';
-    if (status === 'error') return 'error';
-    if (status === 'offline') return 'offline';
-    if (!TL.GitHub.configured() || status === 'unconfigured') return 'disconnected';
-    /* synced / idle → 已连接 */
-    return 'connected';
+    switch (s.status) {
+      case 'pushing':     return 'pushing';        /* ● 黄色：正在推送数据至GitHub */
+      case 'pulling':     return 'pulling';        /* ● 黄色：正在拉取云端最新数据 */
+      case 'syncing':     return 'syncing';        /* ● 黄色：回滚等同步中 */
+      case 'pushed':      return 'pushed';         /* ● 绿色：同步上传成功 */
+      case 'updated':     return 'updated';        /* ● 绿色：云端数据已更新 */
+      case 'pending':     return 'pending';        /* ● 琥珀：存在本地未同步变更 */
+      case 'error':       return 'error';          /* ● 红色：同步失败 */
+      case 'offline':     return 'offline';
+      case 'unconfigured':return 'disconnected';   /* 未连接云端·仅本地 */
+      default:            return TL.GitHub.configured() ? 'connected' : 'disconnected';
+    }
   }
 
+  /** 底部状态栏同步文案（与规范一致的中文短语；沿用 data-sb 映射保证文字与配色一致） */
   function syncText(s) {
     var sb = mapSyncState(s);
     var TEXT = {
-      connected:  '已连接云端·自动同步',
-      syncing:   '正在同步至GitHub',
-      pulling:   '正在拉取云端数据',
-      updated:   '云端数据已更新',
-      pending:   '存在本地未同步变更',
-      error:     '同步失败',
-      offline:   '离线模式',
+      connected:    '已连接云端·自动同步',
+      syncing:      '正在同步至GitHub',
+      pushing:      '正在推送数据至GitHub',
+      pulling:      '正在拉取云端最新数据',
+      pushed:       '同步上传成功',
+      updated:      '云端数据已更新',
+      pending:      '存在本地未同步变更',
+      error:        '同步失败，请检查网络/Token',
+      offline:      '离线模式',
       disconnected: '未连接云端·仅本地'
     };
-    return TEXT[sb] || '未连接云端·仅本地';
+    return TEXT[sb] || TEXT.disconnected;
+  }
+
+  /* ------------------------------ 同步提示控制器 ------------------------------
+     订阅 TL.Sync 状态机，按规范弹出轻提示（Toast）。仅新增消息反馈 UI，
+     不介入定时存储 / 双向拉取 / 冲突合并等底层同步逻辑。
+     · 推送成功        → ✅ 数据已成功同步至云端（自动 + 手动均提示）
+     · 拉取覆盖本地    → 🔄 检测到云端更新，数据已刷新（自动 + 手动拉取提示）
+     · 手动同步失败    → ❌ 同步失败，数据保存在本地，稍后自动重试
+     · 后台自动重试失败 → 静默，仅状态栏持续标记异常（不弹失败提示）
+     · 手动拉取无变化  → ✅ 本地已是最新
+  ---------------------------------------------------------------------------- */
+  function initSyncToasts() {
+    if (initSyncToasts._inited) return;
+    initSyncToasts._inited = true;
+
+    TL.Sync.on(function (s) {
+      var st = s.status;
+
+      if (st === 'pushed') {
+        toast('✅ 数据已成功同步至云端', 'success');
+      }
+      else if (st === 'updated') {
+        // 手动「立即同步」(pull+push) 时不重复提示拉取，最终以「同步上传成功」收尾
+        if (!(manualSync.active && manualSync.kind === 'sync')) {
+          toast('🔄 检测到云端更新，数据已刷新', 'success');
+        }
+      }
+      else if (st === 'error') {
+        // 仅用户主动触发的同步失败时提示；后台静默重试不弹失败提示
+        if (manualSync.active) toast('❌ 同步失败，数据保存在本地，稍后自动重试', 'error');
+      }
+      else if (st === 'connected' || st === 'synced' || st === 'idle') {
+        // 手动拉取且本地已是最新
+        if (manualSync.active && manualSync.kind === 'pull' && prevSyncStatus === 'pulling') {
+          toast('✅ 本地已是最新', 'success');
+        }
+      }
+
+      prevSyncStatus = st;
+    });
   }
 
   function mapDeployState(s) {
@@ -995,20 +1067,27 @@ window.TL = window.TL || {};
     var bar = h('div', { id: 'tl-statusbar', class: 'tl-statusbar' }, [
       /* ① 云端同步（GitHub） */
       h('button', { class: 'tl-statusbar__pill', id: 'sb-sync', type: 'button', onClick: function () {
+        var s = TL.Sync.state();
+        var lastSync = Math.max(s.lastPushAt || 0, s.lastPullAt || 0);
         var verRows = TL.Store.CATS.map(function (cat) {
           var d = TL.Store.get(cat);
           return kv(cat + '.json', (d && d.updatedAt) ? fmtTime(d.updatedAt) : '—');
         });
-        showStatusDetail('云端同步详情', TL.Sync.state(), [
-          kv('同步阶段', (TL.Sync.state().phase || 'idle').toUpperCase()),
+        var rows = [
+          kv('同步结果', syncText(s)),
+          kv('最近同步', lastSync ? fmtTime(lastSync) : '—'),
+          kv('最近推送', s.lastPushAt ? fmtTime(s.lastPushAt) : '—'),
+          kv('最近拉取', s.lastPullAt ? fmtTime(s.lastPullAt) : '—'),
+          kv('失败原因', s.lastError || '无'),
           h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '各数据文件版本（最近修改时间）：' }),
           h('div', { class: 'tl-kv-grid', style: 'margin-top:4px' }, verRows),
           h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
             h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '立即同步', onClick: function () {
-              if (TL.GitHub.configured()) { TL.Sync.syncNow().catch(function () {}); }
+              if (TL.GitHub.configured()) { beginManual('sync'); TL.Sync.syncNow().catch(function () {}).then(endManual); }
             }})
           ])
-        ]);
+        ];
+        modal({ title: '云端同步详情', content: h('div', {}, rows), actions: [{ label: '关闭', type: 'ghost', onClick: function (m) { m.close(); } }] });
       }}, [
         h('i', { class: 'tl-statusbar__dot' }),
         h('span', { class: 'tl-statusbar__text', text: '检测中…' })
@@ -1083,6 +1162,9 @@ window.TL = window.TL || {};
     TL.Sync.on(refreshAll);
     TL.Deploy.on(refreshAll);
     TL.Vercel.on(refreshAll);
+
+    // ---- 同步轻提示控制器（Toast 队列：成功 / 失败 / 拉取更新） ----
+    initSyncToasts();
 
     // ---- 网络状态监听 ----
     window.addEventListener('online', refreshAll);
