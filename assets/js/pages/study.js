@@ -164,7 +164,7 @@ window.TL.pages = window.TL.pages || {};
       U.h('div', { class: 'sd-course-form__row' }, [nameI]),
       U.h('div', { class: 'sd-course-form__row' }, [linkI, U.h('button', { class: 'tl-btn tl-btn--primary', text: '添加课程', onClick: add })])
     ]));
-    var list = U.h('div', {});
+    var list = U.h('div', { class: 'sd-scroll' });
     body.appendChild(list);
     renderCoursesList(list, p);
     return board('网盘课程库', 'Netdisk Course Library', body, '独立长期学习目标仓库 · 绑定单条百度网盘链接');
@@ -284,7 +284,7 @@ window.TL.pages = window.TL.pages || {};
     }
     body.appendChild(attach);
 
-    var list = U.h('div', {});
+    var list = U.h('div', { class: 'sd-scroll' });
     body.appendChild(list);
     renderTodayList(list, p, tk);
   }

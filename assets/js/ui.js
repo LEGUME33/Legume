@@ -235,9 +235,14 @@ window.TL = window.TL || {};
 
   /* ------------------------------ 可跳转预览卡片 ------------------------------ */
   function previewCard(opts) {
+    var titles = h('div', { class: 'tl-card__titles' }, [
+      h('span', { class: 'tl-card__dot' }),
+      h('span', { class: 'tl-card__title', text: opts.title }),
+      opts.sub ? h('span', { class: 'tl-card__sub', text: opts.sub }) : null
+    ]);
     var card = h('a', { class: 'tl-card tl-card--link', href: opts.href, 'data-card': opts.key || '' }, [
       h('div', { class: 'tl-card__head' }, [
-        h('span', { class: 'tl-card__title', text: opts.title }),
+        titles,
         opts.tag ? h('span', { class: 'tl-tag' + (opts.tagType ? ' tl-tag--' + opts.tagType : ''), text: opts.tag }) : null,
         h('span', { class: 'tl-card__go', text: '查看 →' })
       ]),

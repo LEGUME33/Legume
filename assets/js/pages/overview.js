@@ -57,6 +57,7 @@ window.TL.pages = window.TL.pages || {};
     host.appendChild(U.previewCard({
       key: 'work-plan',
       title: '今日计划完成度',
+      sub: 'Today Plan',
       href: 'work.html#plans',
       tag: w.planTotal ? (w.planDone + '/' + w.planTotal) : '待添加',
       tagType: w.planTotal && w.planDone === w.planTotal ? 'success' : 'sub',
@@ -74,6 +75,7 @@ window.TL.pages = window.TL.pages || {};
     host.appendChild(U.previewCard({
       key: 'work-todo',
       title: '未完成计划',
+      sub: 'Open Tasks',
       href: 'work.html#plans',
       tag: w.todoOpen ? '进行中' : '已清空',
       tagType: w.todoOpen ? 'warning' : 'success',
@@ -86,6 +88,7 @@ window.TL.pages = window.TL.pages || {};
     host.appendChild(U.previewCard({
       key: 'work-monthly',
       title: '月度任务完成进度',
+      sub: 'Monthly Tasks',
       href: 'work.html#monthly',
       tag: mo.dayTotal ? (mo.dayDone + '/' + mo.dayTotal) : '待添加',
       tagType: mo.dayTotal && mo.dayDone === mo.dayTotal ? 'success' : 'sub',
@@ -104,6 +107,7 @@ window.TL.pages = window.TL.pages || {};
     host.appendChild(U.previewCard({
       key: 'work-review',
       title: '最新复盘摘要',
+      sub: 'Latest Review',
       href: 'work.html#reviews',
       tag: r ? (r.type || '复盘') : '暂无',
       tagType: r ? 'info' : 'sub',
@@ -131,6 +135,7 @@ window.TL.pages = window.TL.pages || {};
     host.appendChild(U.previewCard({
       key: 'study-today',
       title: '当前主题·今日待完成网盘课程',
+      sub: 'Today Courses',
       href: 'study.html#plan',
       tag: s.currentPlanTodayTodo ? '待完成' : (s.currentPlanTodayTotal ? '已全部完成' : '暂无任务'),
       tagType: s.currentPlanTodayTodo ? 'warning' : 'success',
@@ -144,6 +149,7 @@ window.TL.pages = window.TL.pages || {};
     host.appendChild(U.previewCard({
       key: 'study-month',
       title: '当前主题·月度目标完成率',
+      sub: 'Monthly Goals',
       href: 'study.html#plan',
       tag: moTotal ? (moDone + '/' + moTotal) : '待添加',
       tagType: moTotal && moDone === moTotal ? 'success' : 'sub',
@@ -164,6 +170,7 @@ window.TL.pages = window.TL.pages || {};
     host.appendChild(U.previewCard({
       key: 'study-checkin',
       title: '当前主题·本月打卡',
+      sub: 'Check-in',
       href: 'study.html#plan',
       tag: hit ? (hit + ' 天') : '未打卡',
       tagType: hit ? 'info' : 'sub',
@@ -199,7 +206,11 @@ window.TL.pages = window.TL.pages || {};
 
     var panel = U.h('a', { class: 'tl-card tl-card--link', href: 'study.html#plan' }, [
       U.h('div', { class: 'tl-card__head' }, [
-        U.h('span', { class: 'tl-card__title', text: '「' + cur.name + '」本月打卡进度' }),
+        U.h('div', { class: 'tl-card__titles' }, [
+          U.h('span', { class: 'tl-card__dot' }),
+          U.h('span', { class: 'tl-card__title', text: '「' + cur.name + '」本月打卡进度' }),
+          U.h('span', { class: 'tl-card__sub', text: 'Check-in Heatmap' })
+        ]),
         U.h('span', { class: 'tl-card__go', text: '查看 →' })
       ])
     ]);
