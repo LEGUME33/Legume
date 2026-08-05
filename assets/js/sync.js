@@ -26,7 +26,8 @@ window.TL = window.TL || {};
     countdown: 0,
     lastError: '',
     lastPullAt: 0,
-    lastPushAt: 0
+    lastPushAt: 0,
+    connectInfo: null    // 启动连通性自检结果（TL.GitHub.verify）：仓库名 / 写入权限 / 默认分支，供状态栏诊断展示
   };
 
   var timer = null;    // 延迟推送
@@ -44,7 +45,7 @@ window.TL = window.TL || {};
 
   function phaseOf(status) {
     if (status === 'syncing' || status === 'pulling' || status === 'pushing') return 'syncing';
-    if (status === 'synced' || status === 'updated' || status === 'pushed') return 'success';
+    if (status === 'synced' || status === 'updated' || status === 'pushed' || status === 'connected') return 'success';
     if (status === 'error') return 'failed';
     return 'idle';
   }
@@ -71,7 +72,8 @@ window.TL = window.TL || {};
     if (!TL.GitHub.configured()) return setStatus('unconfigured', '未连接云端 · 仅本地');
     if (hasDirty()) return setStatus('pending', '待同步 ' + state.countdown + 's');
     var t = state.lastPushAt || state.lastPullAt;
-    return setStatus('synced', '已同步' + (t ? ' · ' + timeAgo(t) : ''));
+    // 连通态（绿色）：启动自检通过 / 空闲无待同步；显式置为 connected，状态栏展示「已连接云端 · 自动同步」
+    return setStatus('connected', '已连接云端 · 自动同步' + (t ? ' · 最近同步 ' + timeAgo(t) : ''));
   }
 
   /* ------------------------------ 脏标记 + 延迟推送 ------------------------------ */
@@ -318,12 +320,30 @@ window.TL = window.TL || {};
     });
   }
 
+  /* ------------------------------ 启动连通性自检 ------------------------------
+     页面启动 / 恢复在线时，主动校验 Token 与仓库读写权限：
+       · 校验通过 → 状态栏切换为绿色「已连接云端 · 自动同步」，并记录仓库诊断信息（connectInfo）
+       · 校验失败 → 记录精确错误（lastError），状态栏标记异常，供「同步详情」浮窗诊断
+     仅做状态判定，不介入 pull/push/合并等底层同步逻辑（规范要求）。 */
+  function probe() {
+    if (!TL.GitHub.configured() || !navigator.onLine) { refreshIdleStatus(); return Promise.resolve(); }
+    return TL.GitHub.verify().then(function (info) {
+      state.connectInfo = info;
+      state.lastError = '';
+      setStatus('connected', '已连接云端 · 自动同步');
+    }).catch(function (err) {
+      state.connectInfo = null;
+      state.lastError = err.message || String(err);
+      setStatus('error', '同步失败，请检查网络/Token');
+    });
+  }
+
   /* ------------------------------ 生命周期 ------------------------------ */
   function init() {
     window.addEventListener('online', function () {
       refreshIdleStatus();
       if (hasDirty()) schedule();
-      pull().catch(function () {});
+      pull().catch(function () {}).then(function () { if (TL.GitHub.configured()) probe(); });
     });
     window.addEventListener('offline', refreshIdleStatus);
 
@@ -358,7 +378,11 @@ window.TL = window.TL || {};
     }, 180000);
 
     refreshIdleStatus();
-    return pull().catch(function () {});
+    /* 页面加载完成 → 优先拉取云端数据；随后启动连通性自检（校验 Token / 仓库权限），
+       连通成功状态栏即切换为绿色「已连接云端 · 自动同步」（满足规范一.1 / 二.1-2）。 */
+    return pull().catch(function () {}).then(function () {
+      if (TL.GitHub.configured() && navigator.onLine) return probe();
+    });
   }
 
   /** 卸载时的阻塞式兜底推送（仅推 dirty 分类） */
@@ -392,6 +416,7 @@ window.TL = window.TL || {};
     markDirty: markDirty,
     pull: pull,
     push: push,
+    probe: probe,
     syncNow: syncNow,
     history: history,
     preview: preview,

@@ -446,7 +446,7 @@ window.TL = window.TL || {};
       kv('最近推送', fmtTime(c.lastPushAt)),
       kv('本机标识', c.device),
       h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
-        h('button', { class: 'tl-btn tl-btn--primary', text: '立即同步', onClick: doSyncNow }),
+        h('button', { class: 'tl-btn tl-btn--primary', text: '立即手动同步', onClick: doSyncNow }),
         h('button', { class: 'tl-btn tl-btn--secondary', text: '拉取云端最新数据', onClick: doPull }),
         h('button', { class: 'tl-btn tl-btn--secondary', text: '历史版本回滚', onClick: openHistory }),
         h('button', { class: 'tl-btn tl-btn--ghost', text: '校验连接', onClick: doVerify })
@@ -922,6 +922,8 @@ window.TL = window.TL || {};
       case 'syncing':     return 'syncing';        /* ● 黄色：回滚等同步中 */
       case 'pushed':      return 'pushed';         /* ● 绿色：同步上传成功 */
       case 'updated':     return 'updated';        /* ● 绿色：云端数据已更新 */
+      case 'connected':   return 'connected';      /* ● 绿色：已连接云端·自动同步（启动自检通过 / 空闲连通态） */
+      case 'synced':      return 'connected';      /* 兼容历史 synced 态 → 绿色已连接 */
       case 'pending':     return 'pending';        /* ● 琥珀：存在本地未同步变更 */
       case 'error':       return 'error';          /* ● 红色：同步失败 */
       case 'offline':     return 'offline';
@@ -975,7 +977,7 @@ window.TL = window.TL || {};
       }
       else if (st === 'error') {
         // 仅用户主动触发的同步失败时提示；后台静默重试不弹失败提示
-        if (manualSync.active) toast('❌ 同步失败，数据保存在本地，稍后自动重试', 'error');
+        if (manualSync.active) toast('❌ 同步失败，数据保存在本地，后台3分钟自动重试', 'error');
       }
       else if (st === 'connected' || st === 'synced' || st === 'idle') {
         // 手动拉取且本地已是最新
@@ -1068,22 +1070,46 @@ window.TL = window.TL || {};
       /* ① 云端同步（GitHub） */
       h('button', { class: 'tl-statusbar__pill', id: 'sb-sync', type: 'button', onClick: function () {
         var s = TL.Sync.state();
+        var c = TL.Store.settings();
         var lastSync = Math.max(s.lastPushAt || 0, s.lastPullAt || 0);
         var verRows = TL.Store.CATS.map(function (cat) {
           var d = TL.Store.get(cat);
           return kv(cat + '.json', (d && d.updatedAt) ? fmtTime(d.updatedAt) : '—');
         });
+        function maskToken(t) {
+          if (!t) return '未配置';
+          var head = t.slice(0, 4), tail = t.length > 4 ? t.slice(-4) : '';
+          return (head + '****' + tail) + '（长度 ' + t.length + '）';
+        }
+        var diag = TL.GitHub.configured()
+          ? (s.connectInfo
+              ? ('仓库 ' + s.connectInfo.fullName + ' · 写入权限 ' + (s.connectInfo.canPush ? '有' : '无') + ' · 分支 ' + (s.connectInfo.defaultBranch || c.branch || 'main'))
+              : (s.lastError ? ('校验失败：' + s.lastError) : '尚未校验，正在连接…'))
+          : '未配置（请到「设置 → GitHub 私有仓库连接」填写令牌）';
         var rows = [
           kv('同步结果', syncText(s)),
           kv('最近同步', lastSync ? fmtTime(lastSync) : '—'),
           kv('最近推送', s.lastPushAt ? fmtTime(s.lastPushAt) : '—'),
           kv('最近拉取', s.lastPullAt ? fmtTime(s.lastPullAt) : '—'),
           kv('失败原因', s.lastError || '无'),
+          h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '连通诊断（Token / 仓库 / 权限）：' }),
+          kv('仓库地址', TL.GitHub.configured() ? (c.owner + '/' + c.repo) : '未配置'),
+          kv('目标分支', c.branch || 'main'),
+          kv('Token 配置', maskToken(c.token)),
+          kv('连通诊断', diag),
           h('div', { class: 'tl-set-note', style: 'margin-top:10px', text: '各数据文件版本（最近修改时间）：' }),
           h('div', { class: 'tl-kv-grid', style: 'margin-top:4px' }, verRows),
           h('div', { class: 'tl-inline-form', style: 'margin-top:12px' }, [
-            h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '立即同步', onClick: function () {
+            h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '立即手动同步', onClick: function () {
               if (TL.GitHub.configured()) { beginManual('sync'); TL.Sync.syncNow().catch(function () {}).then(endManual); }
+            }}),
+            h('button', { class: 'tl-btn tl-btn--secondary tl-btn--sm', text: '重新校验连接', onClick: function () {
+              if (!TL.GitHub.configured()) { toast('请先填写用户名 / 仓库 / 令牌', 'warn'); return; }
+              toast('正在校验连接…');
+              TL.Sync.probe().then(function () {
+                var st = TL.Sync.state();
+                toast(st.connectInfo ? ('连接正常 · ' + st.connectInfo.fullName) : ('校验失败：' + (st.lastError || '未知错误')), st.connectInfo ? 'success' : 'error', 4200);
+              });
             }})
           ])
         ];
