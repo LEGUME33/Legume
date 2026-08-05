@@ -1,7 +1,22 @@
 {
   "schema": 1,
-  "plans": { "month": [], "week": [], "day": [] },
+  "plans": {
+    "month": [],
+    "week": [],
+    "day": [
+      {
+        "id": "plan_msfab2f26et27",
+        "text": "小象付款",
+        "done": false,
+        "scope": "day",
+        "date": "2026-08-05",
+        "ts": 1785885820670,
+        "level": "low",
+        "note": ""
+      }
+    ]
+  },
   "todos": [],
   "reviews": [],
-  "updatedAt": 0
+  "updatedAt": 1785885820670
 }
