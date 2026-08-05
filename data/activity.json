@@ -1,5 +1,41 @@
 {
   "schema": 1,
-  "logs": [],
-  "updatedAt": 0
+  "logs": [
+    {
+      "id": "log_msfabg2b1kspp",
+      "ts": 1785885838355,
+      "cat": "study",
+      "action": "推送今日热点 5 条",
+      "device": "Windows-sc01"
+    },
+    {
+      "id": "log_msfab2f36gy6l",
+      "ts": 1785885820671,
+      "cat": "work",
+      "action": "新增day计划「小象付款」",
+      "device": "Windows-sc01"
+    },
+    {
+      "id": "log_msfaato4gkxah",
+      "ts": 1785885809332,
+      "cat": "work",
+      "action": "删除待办「小象付款」",
+      "device": "Windows-sc01"
+    },
+    {
+      "id": "log_msfaapbqdn1vu",
+      "ts": 1785885803702,
+      "cat": "work",
+      "action": "完成待办「小象付款」",
+      "device": "Windows-sc01"
+    },
+    {
+      "id": "log_mses0m7c0sz99",
+      "ts": 1785855100008,
+      "cat": "work",
+      "action": "新增待办「小象付款」",
+      "device": "Windows-sc01"
+    }
+  ],
+  "updatedAt": 1785885838355
 }
