@@ -70,14 +70,14 @@ window.TL.pages = window.TL.pages || {};
       foot: w.planTotal ? '剩余 ' + (w.planTotal - w.planDone) + ' 项待推进' : '前往工作页添加今日计划'
     }));
 
-    // 未完成待办统计
+    // 未完成计划统计（原「工作待办」已并入每日计划）
     host.appendChild(U.previewCard({
       key: 'work-todo',
-      title: '未完成待办',
-      href: 'work.html#todos',
+      title: '未完成计划',
+      href: 'work.html#plans',
       tag: w.todoOpen ? '进行中' : '已清空',
       tagType: w.todoOpen ? 'warning' : 'success',
-      body: [U.metric(w.todoOpen, '条待办等待处理', w.todoOpen ? 'warning' : 'success', ' 条')],
+      body: [U.metric(w.todoOpen, '条计划等待处理', w.todoOpen ? 'warning' : 'success', ' 条')],
       foot: '累计 ' + w.todoTotal + ' 条 · 已完成 ' + (w.todoTotal - w.todoOpen) + ' 条'
     }));
 

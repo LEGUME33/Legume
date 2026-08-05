@@ -439,11 +439,29 @@ small { font-size: var(--fs-cap); }
 .tl-task:hover .tl-task__edit { opacity: 1; }
 .tl-task__edit:hover { background: var(--c-primary-soft); color: var(--c-primary); }
 
+/* 重要程度底色（高=深红 / 中=橙黄 / 低=浅灰，均取莫兰迪柔和淡色，暗色主题由同名变量自动适配） */
+.tl-task--level-high { background: var(--c-level-high-soft); border-color: color-mix(in srgb, var(--c-level-high) 34%, transparent); }
+.tl-task--level-mid  { background: var(--c-level-mid-soft);  border-color: color-mix(in srgb, var(--c-level-mid) 34%, transparent); }
+.tl-task--level-low  { background: var(--c-level-low-soft);  border-color: color-mix(in srgb, var(--c-level-low) 30%, transparent); }
+.tl-task--level-high:hover { border-color: var(--c-level-high); }
+.tl-task--level-mid:hover  { border-color: var(--c-level-mid); }
+.tl-task--level-low:hover  { border-color: var(--c-level-low); }
+/* 等级文案（meta 位）跟随等级主色 */
+.tl-task--level-high .tl-task__meta { color: var(--c-level-high); font-weight: var(--fw-medium); }
+.tl-task--level-mid  .tl-task__meta { color: var(--c-level-mid);  font-weight: var(--fw-medium); }
+.tl-task--level-low  .tl-task__meta { color: var(--c-level-low); }
+
 /* 勾选完成态：主色填充 + 灰化 + 删除线（全站统一） */
 .tl-task.is-done { background: var(--c-surface-2); }
 .tl-task.is-done .tl-check { background: var(--c-primary); border-color: var(--c-primary); }
 .tl-task.is-done .tl-check::after { transform: rotate(45deg) scale(1); }
 .tl-task.is-done .tl-task__text { color: var(--c-text-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+/* 完成后统一淡化：等级底色让位于灰底，删除线 + 文字淡化保持全站一致 */
+.tl-task.is-done.tl-task--level-high,
+.tl-task.is-done.tl-task--level-mid,
+.tl-task.is-done.tl-task--level-low { background: var(--c-surface-2); border-color: var(--c-border); opacity: .72; }
+.tl-task.is-done .tl-task__meta { color: var(--c-text-muted) !important; font-weight: var(--fw-regular); text-decoration: line-through; }
+.tl-task.is-done .tl-task__note { color: var(--c-text-muted); text-decoration: line-through; }
 
 /* ============================== 标签 / 空态 / 键值行 ============================== */
 .tl-tag {
@@ -1392,10 +1410,10 @@ small { font-size: var(--fs-cap); }
 .mo-cell__dot.is-partial { background: var(--c-tip-warning); }
 .mo-cell__dot.is-on { background: var(--c-tip-success); }
 
-/* 日历格内标记容器（计划完成点 + 待办数量徽标均绝对定位于单元格） */
+/* 日历格内标记容器（完成点 + 等级色点 + 计划数量徽标均绝对定位于单元格） */
 .mo-cell__marks { position: static; }
-/* 工作待办数量徽标（莫兰迪主色软底） */
-.mo-cell__todo {
+/* 当日计划数量徽标（莫兰迪主色软底） */
+.mo-cell__plan {
   position: absolute;
   top: 6px; right: 8px;
   min-width: 16px; height: 16px; padding: 0 4px;
@@ -1404,13 +1422,25 @@ small { font-size: var(--fs-cap); }
   color: var(--c-primary); background: var(--c-primary-soft);
   border-radius: var(--r-pill);
 }
+/* 重要程度色点：一格内按 高→中→低 顺序横向排布于左下角 */
+.mo-cell__lv {
+  position: absolute;
+  bottom: 6px;
+  width: 6px; height: 6px;
+  border-radius: var(--r-pill);
+}
+.mo-cell__lv--high { left: 8px;  background: var(--c-level-high); }
+.mo-cell__lv--mid  { left: 18px; background: var(--c-level-mid); }
+.mo-cell__lv--low  { left: 28px; background: var(--c-level-low); }
 
-/* ===================== 工作待办 · 日期选择 ===================== */
+/* ===================== 每日计划 · 周期 / 日期选择 ===================== */
 .tl-todo-datebar {
   display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
   margin-bottom: var(--sp-3);
 }
 .tl-todo-count { margin: 2px 0 10px; font-size: var(--fs-cap); }
+/* 月计划：原生月份选择器（与 tl-input 同一圆角 / 边框语言） */
+.tl-input--month { max-width: 190px; }
 
 /* 莫兰迪日历弹层选择器 */
 .tl-datepick { position: relative; }
@@ -1437,7 +1467,7 @@ small { font-size: var(--fs-cap); }
 }
 .tl-datepick__pop .tl-calendar { background: transparent; }
 
-/* openDay 当日明细区块（日计划 + 工作待办） */
+/* openDay 当日明细区块（当日日计划 + 归属周计划 + 归属月计划） */
 .mo-day__section { margin-top: var(--sp-4); }
 .mo-day__section-title {
   font-size: var(--fs-sub); font-weight: var(--fw-bold);

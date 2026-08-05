@@ -57,6 +57,14 @@
   --c-tip-info:         var(--mor-mist);
   --c-tip-info-soft:    rgba(147, 167, 184, .18);
 
+  /* ===================== L6 · 计划重要等级色（莫兰迪柔和，适配深浅主题） ===================== */
+  --c-level-high:       #B07A75;   /* 高优先级 · 重要紧急 · 深红 */
+  --c-level-high-soft:  rgba(176, 122, 117, .16);
+  --c-level-mid:        #C9A36A;   /* 中优先级 · 常规重点 · 橙黄 */
+  --c-level-mid-soft:   rgba(201, 163, 106, .16);
+  --c-level-low:        #A39C93;   /* 低优先级 · 普通事项 · 浅灰 */
+  --c-level-low-soft:   rgba(163, 156, 147, .14);
+
   /* ===================== 界面容器 ===================== */
   --c-bg:          #F2EFEA;    /* 页面底色 */
   --c-bg-soft:     #EBE7E1;    /* 次级底色 */
@@ -146,6 +154,13 @@ html[data-theme="dark"] {
   --c-tip-danger-soft:  rgba(203, 138, 135, .18);
   --c-tip-info:         #A3B6C6;
   --c-tip-info-soft:    rgba(163, 182, 198, .20);
+
+  --c-level-high:       #C98E89;
+  --c-level-high-soft:  rgba(201, 142, 137, .18);
+  --c-level-mid:        #D8B27A;
+  --c-level-mid-soft:   rgba(216, 178, 122, .18);
+  --c-level-low:        #9C958C;
+  --c-level-low-soft:   rgba(156, 149, 140, .16);
 
   --c-bg:            #201E1C;
   --c-bg-soft:       #262421;

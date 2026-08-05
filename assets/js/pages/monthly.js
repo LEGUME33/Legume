@@ -4,13 +4,13 @@
    顶部：【月历 / 周历】分段切换 + 本月已打卡统计
    主体：
      · 月历：标准 6 周日历，周一为周起点，胶囊格子，上月/下月淡色，
-       选中日期外边框高亮，完成日期显示标识；点击格子弹窗看当日日计划
+       选中日期外边框高亮；格子按当日计划条数 + 重要程度颜色点标识
      · 周历：本周周一至周日横向条 + 本周周计划列表
    底部：规则提示栏（打卡条件 + 云端同步说明）
-   数据：全部联动自【每日计划】的日计划 / 周计划；勾选状态经 Store.update
-         持久化，触发全局重绘后日历自动刷新。
-   约束：仅替换「工作总结」内部展示样式，不改动每日计划 / 工作待办 /
-         复盘总结任何功能、表单、图片接口、AI 分析逻辑。
+   数据：全部联动自【每日计划】的日 / 周 / 月计划；点击日期弹窗同时加载
+         当日日计划 + 归属本周的周计划 + 归属本月的月计划；勾选状态经
+         Store.update 持久化，触发全局重绘后日历自动刷新。
+   打卡：当日绑定的全部日计划勾选完成，方可算作当日打卡完成（逻辑不变）。
    ===================================================================== */
 window.TL = window.TL || {};
 window.TL.pages = window.TL.pages || {};
@@ -82,9 +82,22 @@ window.TL.pages = window.TL.pages || {};
     });
   }
 
-  /* 某日期绑定的工作待办（联动【工作待办】模块，按 date 聚合） */
-  function todosOf(key) {
-    return (TL.Store.get('work').todos || []).filter(function (t) { return t.date === key; });
+  /* 某日期归属自然月的月计划 */
+  function monthPlansOf(key) {
+    var ym = (key || '').slice(0, 7);
+    return (plans().month || []).filter(function (p) { return (p.date || '').slice(0, 7) === ym; });
+  }
+
+  /* 重要程度：文案 + 顺序（高 > 中 > 低），色彩由 CSS 变量统一控制 */
+  var LEVEL_ORDER = ['high', 'mid', 'low'];
+  function levelLabel(k) {
+    return ({ high: '高优先级', mid: '中优先级', low: '低优先级' })[k] || '低优先级';
+  }
+  /* 当日计划中出现过的重要程度（按高→低排序，用于日历格子色点） */
+  function levelsOf(list) {
+    var seen = {};
+    list.forEach(function (p) { seen[p.level || 'low'] = 1; });
+    return LEVEL_ORDER.filter(function (k) { return seen[k]; });
   }
 
   function daySection(title, node) {
@@ -115,67 +128,91 @@ window.TL.pages = window.TL.pages || {};
     return { done: done, total: total };
   }
 
-  /* ---------------- 弹窗：当日明细（日计划 + 工作待办，双向互通） ---------------- */
+  /* ---------------- 弹窗：当日明细（日计划 + 归属周计划 + 归属月计划） ---------------- */
+  /* 计划条目：统一带重要程度底色，可勾选、可编辑（编辑复用【每日计划】统一弹窗） */
+  function planRow(p, sc) {
+    return U.taskItem({
+      text: p.text, done: p.done, level: p.level || 'low',
+      meta: levelLabel(p.level || 'low'), note: p.note,
+      onToggle: function (next) {
+        TL.Store.update('work', function (d) {
+          var it = d.plans[sc].filter(function (x) { return x.id === p.id; })[0];
+          if (it) it.done = next;
+        }, (next ? '完成' : '取消完成') + ({ day: '日计划', week: '周计划', month: '月计划' })[sc] + '「' + p.text + '」');
+      },
+      onEdit: function () {
+        if (TL.pages.work && TL.pages.work.openPlanModal) TL.pages.work.openPlanModal(p, { scope: sc });
+      }
+    });
+  }
+
   function openDay(key, dayNum) {
     var list = dayPlansOf(key);
     var total = list.length;
     var done = list.filter(function (p) { return p.done; }).length;
-    var todos = todosOf(key);
+    var mon = startOfWeek(new Date(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)));
+    var wplans = weekPlansOf(mon);
+    var mplans = monthPlansOf(key);
 
     var body = U.h('div', {}, [
       U.h('div', { class: 'tl-modal__lead' }, [
         U.h('span', { class: 'tl-tag tl-tag--' + (total && done === total ? 'success' : 'sub'), text: total ? (done + '/' + total + ' 已完成') : '无日计划' }),
-        U.h('span', { class: 'tl-muted', text: key + (todos.length ? (' · 待办 ' + todos.length) : '') })
+        U.h('span', { class: 'tl-muted', text: key + ' · 周计划 ' + wplans.length + ' · 月计划 ' + mplans.length })
       ])
     ]);
 
     if (!total) {
-      body.appendChild(U.h('div', { class: 'tl-empty', text: '当日暂无日计划。前往「工作 → 每日计划」添加并勾选完成。' }));
+      body.appendChild(U.h('div', { class: 'tl-empty', text: '当日暂无日计划。可点击下方按钮快速新建，或前往「工作 → 每日计划」添加。' }));
     } else {
       var box = U.h('div', { class: 'tl-review-list' });
-      list.forEach(function (p) {
-        box.appendChild(U.taskItem({
-          text: p.text, done: p.done,
-          onToggle: function (next) {
-            TL.Store.update('work', function (d) {
-              var it = d.plans.day.filter(function (x) { return x.id === p.id; })[0];
-              if (it) it.done = next;
-            }, (next ? '完成' : '取消完成') + '日计划「' + p.text + '」');
-          }
-        }));
-      });
+      list.forEach(function (p) { box.appendChild(planRow(p, 'day')); });
       body.appendChild(daySection('当日日计划', box));
     }
 
-    if (todos.length) {
-      var tbox = U.h('div', { class: 'tl-review-list' });
-      todos.forEach(function (t) {
-        tbox.appendChild(U.taskItem({
-          text: t.text, done: t.done, meta: t.priority || '普通', note: t.note,
-          onToggle: function (next) {
-            TL.Store.update('work', function (d) {
-              var it = d.todos.filter(function (x) { return x.id === t.id; })[0];
-              if (it) it.done = next;
-            }, (next ? '完成' : '重开') + '待办「' + t.text + '」');
-          },
-          onEdit: function () { TL.pages.work.openTodoModal(t, key); }
-        }));
-      });
-      body.appendChild(daySection('当日工作待办', tbox));
-    } else if (!total) {
-      body.appendChild(U.h('div', { class: 'tl-empty', text: '当日暂无工作待办。点击下方按钮快速新建。' }));
+    if (wplans.length) {
+      var wbox = U.h('div', { class: 'tl-review-list' });
+      wplans.forEach(function (p) { wbox.appendChild(planRow(p, 'week')); });
+      body.appendChild(daySection('本周周计划（' + keyOfDate(mon) + ' ~ ' + keyOfDate(endOfWeek(mon)) + '）', wbox));
     }
 
-    /* 快捷操作：直接新建该日期的工作待办（与【工作待办】模块双向互通） */
+    if (mplans.length) {
+      var mbox = U.h('div', { class: 'tl-review-list' });
+      mplans.forEach(function (p) { mbox.appendChild(planRow(p, 'month')); });
+      body.appendChild(daySection('本月月计划（' + key.slice(0, 7) + '）', mbox));
+    }
+
+    /* 快捷操作：直接新建绑定该日期的日计划（与【每日计划】双向互通） */
     body.appendChild(U.h('div', { class: 'mo-day__actions' }, [
-      U.h('button', { class: 'tl-btn tl-btn--primary tl-btn--sm', text: '＋ 新建该日期工作待办', onClick: function () { TL.pages.work.openTodoModal(null, key); } })
+      U.h('button', {
+        class: 'tl-btn tl-btn--primary tl-btn--sm', text: '＋ 新建该日期日计划',
+        onClick: function () {
+          if (TL.pages.work && TL.pages.work.openPlanModal) TL.pages.work.openPlanModal(null, { scope: 'day', date: key });
+        }
+      })
     ]));
 
     U.modal({
-      title: (anchor.getMonth() + 1) + ' 月 ' + dayNum + ' 日 · 当日明细',
+      title: (+key.slice(5, 7)) + ' 月 ' + (dayNum || +key.slice(8, 10)) + ' 日 · 当日明细',
       content: body,
       actions: [{ label: '关闭', type: 'primary', onClick: function (m) { m.close(); } }]
     });
+  }
+
+  /* 日历格子标识：完成状态圆点 + 重要程度色点 + 计划条数 */
+  function cellMarks(key) {
+    var marks = [];
+    var s = cellStatus(key);
+    if (s === 'done') marks.push(U.h('span', { class: 'mo-cell__dot is-on' }));
+    else if (s === 'partial') marks.push(U.h('span', { class: 'mo-cell__dot is-partial' }));
+    else if (s === 'todo') marks.push(U.h('span', { class: 'mo-cell__dot is-todo' }));
+    var list = dayPlansOf(key);
+    if (list.length) {
+      levelsOf(list).forEach(function (lv) {
+        marks.push(U.h('span', { class: 'mo-cell__lv mo-cell__lv--' + lv, title: levelLabel(lv) }));
+      });
+      if (list.length > 1) marks.push(U.h('span', { class: 'mo-cell__plan', text: String(list.length) }));
+    }
+    return marks.length ? U.h('div', { class: 'mo-cell__marks' }, marks) : null;
   }
 
   /* ---------------- 导航：翻页 / 今天 ---------------- */
@@ -242,16 +279,7 @@ window.TL.pages = window.TL.pages || {};
         if (key === selectedKey) cls += ' is-selected';
         return cls;
       },
-      cellContent: function (key) {
-        var marks = [];
-        var s = cellStatus(key);
-        if (s === 'done') marks.push(U.h('span', { class: 'mo-cell__dot is-on' }));
-        else if (s === 'partial') marks.push(U.h('span', { class: 'mo-cell__dot is-partial' }));
-        else if (s === 'todo') marks.push(U.h('span', { class: 'mo-cell__dot is-todo' }));
-        var ts = todosOf(key);
-        if (ts.length) marks.push(U.h('span', { class: 'mo-cell__todo', text: String(ts.length) }));
-        return marks.length ? U.h('div', { class: 'mo-cell__marks' }, marks) : null;
-      }
+      cellContent: cellMarks
     });
 
     // 接管日历自带导航，使 anchor 与页面状态同步
@@ -285,16 +313,7 @@ window.TL.pages = window.TL.pages || {};
         if (key === selectedKey) cls += ' is-selected';
         return cls;
       },
-      cellContent: function (key) {
-        var marks = [];
-        var s = cellStatus(key);
-        if (s === 'done') marks.push(U.h('span', { class: 'mo-cell__dot is-on' }));
-        else if (s === 'partial') marks.push(U.h('span', { class: 'mo-cell__dot is-partial' }));
-        else if (s === 'todo') marks.push(U.h('span', { class: 'mo-cell__dot is-todo' }));
-        var ts = todosOf(key);
-        if (ts.length) marks.push(U.h('span', { class: 'mo-cell__todo', text: String(ts.length) }));
-        return marks.length ? U.h('div', { class: 'mo-cell__marks' }, marks) : null;
-      }
+      cellContent: cellMarks
     });
 
     var btns = cal.querySelectorAll('.tl-calendar__navbtn');
@@ -319,17 +338,7 @@ window.TL.pages = window.TL.pages || {};
       planSection.appendChild(U.h('div', { class: 'tl-empty', text: '本周暂无周计划。前往「工作 → 每日计划 → 周计划」添加。' }));
     } else {
       var box = U.h('div', { class: 'tl-review-list' });
-      wplans.forEach(function (p) {
-        box.appendChild(U.taskItem({
-          text: p.text, done: p.done,
-          onToggle: function (next) {
-            TL.Store.update('work', function (d) {
-              var it = d.plans.week.filter(function (x) { return x.id === p.id; })[0];
-              if (it) it.done = next;
-            }, (next ? '完成' : '取消完成') + '周计划「' + p.text + '」');
-          }
-        }));
-      });
+      wplans.forEach(function (p) { box.appendChild(planRow(p, 'week')); });
       planSection.appendChild(box);
     }
 

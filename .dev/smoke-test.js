@@ -115,7 +115,9 @@ PAGES.forEach(function (page) {
         ok(!!r.id && Array.isArray(r.images) && r.fields && typeof r.ts === 'number', '旧版复盘记录已规范化（兼容）');
       });
       // 工作总结（月度任务总结）已融合为工作页第 1 个标签页
-      ok(win.document.getElementById('wk-tabs').querySelectorAll('.tl-tab').length === 4, '工作·标签页含 4 项（含「工作总结」）');
+      ok(win.document.getElementById('wk-tabs').querySelectorAll('.tl-tab').length === 3, '工作·标签页精简为 3 项（工作总结｜每日计划｜复盘总结）');
+      ok(!win.document.querySelector('#wk-tabs .tl-tab[data-tab="todos"]'), '工作·独立「工作待办」标签已移除');
+      ok(!win.document.getElementById('wk-todos'), '工作·独立「工作待办」分区容器已移除');
       var moTab = win.document.querySelector('#wk-tabs .tl-tab[data-tab="monthly"]');
       ok(!!moTab, '工作·存在「工作总结」标签');
       moTab.click(); // 切到该标签，验证内嵌日历看板渲染真实天数

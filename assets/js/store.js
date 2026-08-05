@@ -18,7 +18,8 @@ window.TL = window.TL || {};
   var CATS = ['work', 'study', 'media', 'activity'];
 
   var DEFAULTS = {
-    /* 工作域：日/周/月计划、待办、复盘 */
+    /* 工作域：日 / 周 / 月计划（含重要程度）、复盘；todos 为历史遗留字段，
+       仅作为旧版「工作待办」的迁移入口保留，migrate 会将其并入 plans.day 后清空 */
     work: function () {
       return { schema: SCHEMA, plans: { month: [], week: [], day: [] }, todos: [], reviews: [], updatedAt: 0 };
     },
@@ -200,16 +201,38 @@ window.TL = window.TL || {};
     if (cat === 'work') {
       if (!d.plans || typeof d.plans !== 'object' || Array.isArray(d.plans)) d.plans = { month: [], week: [], day: [] };
       ['month', 'week', 'day'].forEach(function (k) { if (!Array.isArray(d.plans[k])) d.plans[k] = []; });
-      if (!Array.isArray(d.todos)) d.todos = [];
-      // 规范每条待办：补齐 id / 绑定日期（无日期旧数据默认归到当日）/ 优先级 / 完成态 / 备注，
-      // 以支持「按日期筛选 + 远期待办 + 历史补录 + 工作总结日历联动」
-      d.todos.forEach(function (t) {
-        if (!t.id) t.id = uid('todo');
-        if (typeof t.date !== 'string' || !t.date) t.date = todayKey();
-        if (typeof t.priority !== 'string') t.priority = '普通';
-        if (typeof t.done !== 'boolean') t.done = false;
-        if (typeof t.note !== 'string') t.note = '';
+      // 规范每条计划：补齐 id / 重要等级（high|mid|low，默认 low）/ 绑定日期 / 完成态 / 备注 / 周期
+      ['month', 'week', 'day'].forEach(function (k) {
+        d.plans[k].forEach(function (p) {
+          if (typeof p.id !== 'string' || !p.id) p.id = uid('plan');
+          if (typeof p.level !== 'string' || (p.level !== 'high' && p.level !== 'mid' && p.level !== 'low')) p.level = 'low';
+          if (typeof p.date !== 'string' || !p.date) p.date = todayKey();
+          if (typeof p.done !== 'boolean') p.done = false;
+          if (typeof p.note !== 'string') p.note = '';
+          if (typeof p.scope !== 'string') p.scope = k;
+        });
       });
+      // 历史工作待办平滑迁移并入「每日计划」：旧优先级映射为等级（紧急→高 / 重要→中 / 普通→低），
+      // 保留原内容、完成态、绑定日期、备注；迁移后清空 todos，保证单一数据源、无需手动重建。
+      if (!Array.isArray(d.todos)) d.todos = [];
+      if (d.todos.length) {
+        var dayIds = {};
+        d.plans.day.forEach(function (p) { dayIds[p.id] = 1; });
+        d.todos.forEach(function (t) {
+          if (t && typeof t.id === 'string' && dayIds[t.id]) return; // 已迁移过，避免云端半合并态产生重复
+          d.plans.day.unshift({
+            id: (typeof t.id === 'string' && t.id) ? t.id : uid('plan'),
+            text: (typeof t.text === 'string') ? t.text : '',
+            done: typeof t.done === 'boolean' ? t.done : false,
+            level: (t.priority === '紧急') ? 'high' : (t.priority === '重要') ? 'mid' : 'low',
+            date: (typeof t.date === 'string' && t.date) ? t.date : todayKey(),
+            note: (typeof t.note === 'string') ? t.note : '',
+            scope: 'day',
+            ts: (t && t.ts) ? t.ts : Date.now()
+          });
+        });
+        d.todos = [];
+      }
       if (!Array.isArray(d.reviews)) d.reviews = [];
       // 规范化每条复盘结构，兼容旧版只有 {type, summary} 的记录
       d.reviews.forEach(function (r) {
@@ -363,8 +386,9 @@ window.TL = window.TL || {};
     var mWeek = (work.plans.week || []).filter(function (p) { return (p.date || '').slice(0, 7) === curYM; });
     var mWeekDone = mWeek.filter(function (p) { return p.done; }).length;
 
-    /* —— 工作：未完成待办 —— */
-    var todoOpen = work.todos.filter(function (t) { return !t.done; }).length;
+    /* —— 工作：未完成日计划（原「工作待办」已并入每日计划） —— */
+    var dayPlanAll = work.plans.day || [];
+    var todoOpen = dayPlanAll.filter(function (p) { return !p.done; }).length;
 
     /* —— 工作：最新复盘摘要 —— */
     var lastReview = work.reviews.slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); })[0] || null;
@@ -407,7 +431,7 @@ window.TL = window.TL || {};
         planDone: planDone,
         planRate: dayPlans.length ? Math.round(planDone / dayPlans.length * 100) : 0,
         todoOpen: todoOpen,
-        todoTotal: work.todos.length,
+        todoTotal: dayPlanAll.length,
         reviewTotal: work.reviews.length,
         lastReview: lastReview,
         monthly: {

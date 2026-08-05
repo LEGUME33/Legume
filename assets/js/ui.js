@@ -165,7 +165,7 @@ window.TL = window.TL || {};
     ];
     if (opts.onEdit) kids.push(h('button', { class: 'tl-task__edit', title: '编辑', html: '&#9998;' }));
     if (opts.onDelete) kids.push(h('button', { class: 'tl-task__del', title: '删除', html: '&times;' }));
-    var node = h('div', { class: 'tl-task' + (opts.done ? ' is-done' : '') }, kids);
+    var node = h('div', { class: 'tl-task' + (opts.done ? ' is-done' : '') + (opts.level ? ' tl-task--level-' + opts.level : '') }, kids);
 
     function toggle() {
       var next = !node.classList.contains('is-done');

@@ -113,20 +113,20 @@ async function main() {
   const pulled = TL.Store.get('work');
   ok(pulled.plans.day.length === 1 && pulled.plans.day[0].id === 'p1', '打开即自动拉取云端 work 种子数据');
 
-  // ② 本地编辑 + 直接推送
-  TL.Store.update('work', function (d) { d.todos.push({ id: 't1', title: '本地待办', done: false }); }, 'add todo');
+  // ② 本地编辑 + 直接推送（工作域已以「每日计划」为唯一数据源）
+  TL.Store.update('work', function (d) { d.plans.day.push({ id: 't1', text: '本地日计划', done: false, level: 'low', date: '2026-07-01', note: '', scope: 'day' }); }, 'add plan');
   const p1 = await TL.Sync.push();
   ok(p1.pushed && p1.pushed.indexOf('work') >= 0, 'push 推送了 work');
   const wStored = JSON.parse(fromB64(repo.get('data/work.json').b64));
-  ok(wStored.todos.length === 1 && wStored.todos[0].title === '本地待办', '远端 work.json 已包含本地新增待办');
+  ok(wStored.plans.day.length === 2 && wStored.plans.day.filter(function (p) { return p.id === 't1'; })[0].text === '本地日计划', '远端 work.json 已包含本地新增日计划');
 
   // ③ sha 冲突(409)后自动取最新 sha 重试
-  TL.Store.update('work', function (d) { d.todos.push({ id: 't2', title: '第二次', done: false }); }, 'add2');
+  TL.Store.update('work', function (d) { d.plans.day.push({ id: 't2', text: '第二次', done: false, level: 'mid', date: '2026-07-02', note: '', scope: 'day' }); }, 'add2');
   const meta = TL.Store.meta(); meta.sha.work = 'WRONGSHA'; TL.Store.saveMeta(meta);
   const p2 = await TL.Sync.push();
   ok(p2.pushed && p2.pushed.indexOf('work') >= 0, 'sha 冲突(409)后自动取最新 sha 重试成功');
   const w2 = JSON.parse(fromB64(repo.get('data/work.json').b64));
-  ok(w2.todos.length === 2, '重试后远端包含两次新增（覆盖 409 前的内容）');
+  ok(w2.plans.day.length === 3, '重试后远端包含两次新增（覆盖 409 前的内容）');
 
   // ④ 条目级合并（同 id 较新侧覆盖、独有项保留、嵌套数组与 updatedAt 取大值）
   const older = { a: [{ id: 1, x: 1 }], b: { c: [{ id: 'x', v: 1 }] }, updatedAt: 100 };
@@ -146,7 +146,8 @@ async function main() {
   const earliest = commits[0]; // 历史数组 oldest-first，首个即最早版本
   await TL.Sync.rollback('work', earliest.sha);
   const rolled = JSON.parse(fromB64(repo.get('data/work.json').b64));
-  ok(rolled.todos.length === 1, '回滚后远端恢复为最早历史版本的待办数量（1 条）');
+  ok(rolled.plans.day.length === 2 && rolled.plans.day.filter(function (p) { return p.id === 't2'; }).length === 0,
+    '回滚后远端恢复为最早历史版本的日计划（2 条 · p1 + t1，不含后续新增 t2）');
   ok(!!(TL.Sync.history && TL.Sync.rollback && TL.Sync.syncNow), '历史版本回滚 / 手动同步接口均可用');
 
   console.log('\n同步引擎单测：' + pass + ' 通过 / ' + fail + ' 失败');

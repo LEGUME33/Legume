@@ -36,7 +36,7 @@ function load() {
   const dom = new JSDOM('<!DOCTYPE html><html><body>' +
     '<header class="tl-topbar"></header><nav class="tl-nav"></nav>' +
     '<div id="wk-tabs"></div>' +
-    '<div id="wk-plans"></div><div id="wk-todos"></div>' +
+    '<div id="wk-plans"></div>' +
     '<div id="wk-reviews"></div><div id="wk-monthly-section"><div id="mo-filter"></div><div id="mo-cal"></div><div id="mo-week"></div></div>' +
     '<div id="sd-pages"></div><div id="sd-plan-bar"></div>' +
     '<div id="sd-plan-section"></div><div id="sd-plan-grid"></div>' +
@@ -114,7 +114,7 @@ console.log('▶ 通用日历组件专项测试');
   if (clickableCell) {
     clickableCell.dispatchEvent(new win.Event('click', { bubbles: true }));
     const modalTitle = (doc.querySelector('#tl-modal-root .tl-modal__title') || {}).textContent || '';
-    ok(modalTitle.indexOf('日计划明细') >= 0, '点击日期格弹出「日计划明细」弹窗');
+    ok(modalTitle.indexOf('当日明细') >= 0, '点击日期格弹出「当日明细」弹窗（日计划 + 周计划 + 月计划）');
     const closeBtn = doc.querySelector('#tl-modal-root .tl-modal__close');
     if (closeBtn) closeBtn.dispatchEvent(new win.Event('click', { bubbles: true }));
   }
